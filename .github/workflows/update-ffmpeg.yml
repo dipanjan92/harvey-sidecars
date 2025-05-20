@@ -20,6 +20,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       MATRIX_FOLDER: ${{ matrix.folder }}
+      RELEASE_TAG: ${{ github.event.inputs.release_tag }}
     strategy:
       fail-fast: false
       matrix:
