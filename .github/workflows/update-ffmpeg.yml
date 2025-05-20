@@ -92,10 +92,14 @@ jobs:
             rm ffmpeg.zip
           else
             curl -L "${{ matrix.download_url }}" -o ffmpeg.7z
-            7z x ffmpeg.7z -y -o.
+            7z x ffmpeg.7z -y
             rm ffmpeg.7z
+            # Find the extracted exe anywhere in subfolders
+            EXE_PATH=$(find . -type f -name "${{ matrix.binary_name }}" | head -n1)
+            # Move it to current directory
+            mv "$EXE_PATH" "${{ matrix.binary_name }}"
+            chmod +x "${{ matrix.binary_name }}"
           fi
-          chmod +x ${{ matrix.binary_name }}
 
       # Step: Create or get GitHub release for FFmpeg
       - name: Create or get GitHub release

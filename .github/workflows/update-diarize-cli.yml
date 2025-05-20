@@ -157,6 +157,8 @@ jobs:
       - name: Create or get GitHub release
         id: create_release
         uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ github.ref_name || 'latest' }}
           release_name: "diarize-cli ${{ github.ref_name || 'latest' }}"
@@ -167,6 +169,8 @@ jobs:
       # Step: Upload the binary to the release
       - name: Upload diarize-cli asset
         uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: diarize-cli/${{ matrix.folder }}/diarize-cli${{ matrix.os == 'windows-latest' && '.exe' || '' }}
