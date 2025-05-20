@@ -240,7 +240,7 @@ jobs:
       # Step: Create or fetch a release for this tag
       - name: Create or get GitHub release
         id: create_release
-        uses: actions/create-release@v1
+        uses: actions/create-release@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           tag_name: ${{ github.ref_name || 'latest' }}
@@ -251,7 +251,7 @@ jobs:
 
       # Step: Upload the binary to the release
       - name: Upload diarize-cli asset
-        uses: actions/upload-release-asset@v1
+        uses: actions/upload-release-asset@v2
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           token: ${{ secrets.GITHUB_TOKEN }}

@@ -64,7 +64,7 @@ jobs:
       # Step: Create or get GitHub release
       - name: Create or get GitHub release
         id: create_release
-        uses: actions/create-release@v1
+        uses: actions/create-release@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           tag_name: ${{ github.ref_name }}
@@ -75,7 +75,7 @@ jobs:
 
       # Step: Upload the whisper-cli binary to the release
       - name: Upload whisper-cli asset
-        uses: actions/upload-release-asset@v1
+        uses: actions/upload-release-asset@v2
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           token: ${{ secrets.GITHUB_TOKEN }}
