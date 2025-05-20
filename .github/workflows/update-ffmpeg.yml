@@ -75,11 +75,12 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Sync to the latest main branch to avoid conflicts
+          git fetch origin main
+          git reset --hard origin/main
+          # Stage the updated binaries folder
           git add ffmpeg/${{ matrix.folder }}
-          if ! git diff --cached --quiet; then
-            git commit -m "chore: update FFmpeg for ${{ matrix.folder }} [skip ci]"
-            git pull --rebase --autostash
-            git push
-          else
-            echo "No changes to commit"
-          fi
+          # Commit only if there are changes
+          git diff --cached --quiet || git commit -m "chore: update FFmpeg for ${{ matrix.folder }} [skip ci]"
+          # Push directly to main
+          git push origin main
