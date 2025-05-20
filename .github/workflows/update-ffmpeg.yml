@@ -95,7 +95,7 @@ jobs:
             7z x ffmpeg.7z -y -o.
             rm ffmpeg.7z
           fi
-          chmod +x ${matrix.binary_name}
+          chmod +x ${{ matrix.binary_name }}
 
       # Step: Create or get GitHub release for FFmpeg
       - name: Create or get GitHub release
