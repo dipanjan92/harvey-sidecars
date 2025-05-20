@@ -5,6 +5,11 @@ permissions:
 
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Git tag to use for the release (must already exist)'
+        required: true
+        default: '${{ github.ref_name }}'
   workflow_call:
 
 jobs:
@@ -24,17 +29,20 @@ jobs:
             cmake_opts: ""
     env:
       MATRIX_FOLDER: ${{ matrix.folder }}
+      RELEASE_TAG: ${{ github.event.inputs.release_tag }}
     defaults:
       run:
         shell: bash
 
     steps:
+      # 1. Checkout the repo
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           persist-credentials: true
           fetch-depth: 0
 
+      # 2. Install cmake
       - name: Install prerequisites
         run: |
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
@@ -43,10 +51,11 @@ jobs:
             brew install cmake git
           fi
 
+      # 3. Clone whisper.cpp
       - name: Clone whisper.cpp
-        run: |
-          git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git whisper.cpp
+        run: git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git whisper.cpp
 
+      # 4. Build whisper-cli
       - name: Build whisper-cli
         run: |
           mkdir -p whisper.cpp/build
@@ -54,6 +63,7 @@ jobs:
           cmake .. -DCMAKE_BUILD_TYPE=Release ${{ matrix.cmake_opts }}
           cmake --build . --config Release
 
+      # 5. Copy the binary into our sidecar folder
       - name: Copy whisper-cli binary
         run: |
           mkdir -p whisper-cpp/${{ matrix.folder }}
@@ -63,7 +73,7 @@ jobs:
             cp whisper.cpp/build/bin/whisper-cli whisper-cpp/${{ matrix.folder }}/whisper-cli
           fi
 
-      # Step: Ensure GitHub release exists (create if missing)
+      # 6. Ensure GitHub release exists (create if missing)
       - name: Ensure GitHub release
         id: ensure_release
         uses: actions/github-script@v6
@@ -71,8 +81,8 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           result-encoding: string
           script: |
-            // Strip any ref prefix
-            const tag = process.env.GITHUB_REF.replace(/^refs\/[^\/]+\//, '');
+            // Use the user-supplied tag
+            const tag = process.env.RELEASE_TAG;
             try {
               const rel = await github.rest.repos.getReleaseByTag({
                 owner: context.repo.owner,
@@ -94,7 +104,7 @@ jobs:
               return rel.data.upload_url;
             }
 
-      # Step: Upload whisper-cli asset
+      # 7. Upload whisper-cli to that release
       - name: Upload whisper-cli asset
         uses: actions/upload-release-asset@v1
         env:

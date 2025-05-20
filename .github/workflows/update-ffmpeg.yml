@@ -5,6 +5,11 @@ permissions:
 
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Git tag to use for the release (must already exist)'
+        required: true
+        default: '${{ github.ref_name }}'
   workflow_call:
 
 env:
@@ -16,6 +21,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       MATRIX_FOLDER: ${{ matrix.folder }}
+      RELEASE_TAG: ${{ github.event.inputs.release_tag }}
     strategy:
       fail-fast: false
       matrix:
@@ -110,8 +116,8 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           result-encoding: string
           script: |
-            // Strip any 'refs/heads/' or 'refs/tags/' prefix to get the short name
-            const tag = process.env.GITHUB_REF.replace(/^refs\/[^\/]+\//, '');
+            // Use the provided release tag from workflow inputs
+            const tag = process.env.RELEASE_TAG;
             try {
               const rel = await github.rest.repos.getReleaseByTag({
                 owner: context.repo.owner,
