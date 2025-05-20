@@ -110,7 +110,8 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           result-encoding: string
           script: |
-            const tag = process.env.GITHUB_REF.replace('refs/tags/', '');
+            // Strip any 'refs/heads/' or 'refs/tags/' prefix to get the short name
+            const tag = process.env.GITHUB_REF.replace(/^refs\/[^\/]+\//, '');
             try {
               const rel = await github.rest.repos.getReleaseByTag({
                 owner: context.repo.owner,
@@ -123,6 +124,7 @@ jobs:
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 tag_name: tag,
+                commitish: context.sha,
                 name: `ffmpeg ${tag}`,
                 body: `Automated build of FFmpeg for ${process.env.MATRIX_FOLDER}`,
                 draft: false,
