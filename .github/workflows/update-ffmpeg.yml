@@ -15,6 +15,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      MATRIX_FOLDER: ${{ matrix.folder }}
     strategy:
       fail-fast: false
       matrix:
@@ -101,18 +102,34 @@ jobs:
             chmod +x "${{ matrix.binary_name }}"
           fi
 
-      # Step: Create or get GitHub release for FFmpeg
-      - name: Create or get GitHub release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Step: Ensure GitHub release exists (create if missing)
+      - name: Ensure GitHub release
+        id: ensure_release
+        uses: actions/github-script@v6
         with:
-          tag_name: ${{ github.ref_name }}
-          release_name: "ffmpeg ${{ github.ref_name }}"
-          body: "Automated build of FFmpeg for ${{ matrix.folder }}"
-          draft: false
-          prerelease: false
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          result-encoding: string
+          script: |
+            const tag = process.env.GITHUB_REF.replace('refs/tags/', '');
+            try {
+              const rel = await github.rest.repos.getReleaseByTag({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag
+              });
+              return rel.data.upload_url;
+            } catch (e) {
+              const rel = await github.rest.repos.createRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag_name: tag,
+                name: `ffmpeg ${tag}`,
+                body: `Automated build of FFmpeg for ${process.env.MATRIX_FOLDER}`,
+                draft: false,
+                prerelease: false
+              });
+              return rel.data.upload_url;
+            }
 
       # Step: Upload FFmpeg binary to the release
       - name: Upload FFmpeg asset
@@ -120,7 +137,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          upload_url: ${{ steps.ensure_release.outputs.result }}
           asset_path: ffmpeg/${{ matrix.folder }}/ffmpeg${{ matrix.os == 'windows-latest' && '.exe' || '' }}
           asset_name: ffmpeg-${{ matrix.folder }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}
           asset_content_type: application/octet-stream
