@@ -12,7 +12,6 @@ on:
       release_tag:
         description: 'Git tag to use for the release (must already exist)'
         required: true
-        default: '${{ github.ref_name }}'
   workflow_call:
 
 jobs:
