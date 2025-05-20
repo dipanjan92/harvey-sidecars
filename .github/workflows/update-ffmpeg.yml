@@ -114,8 +114,9 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           result-encoding: string
           script: |
-            // Strip any 'refs/heads/' or 'refs/tags/' prefix to get the short name
-            const tag = process.env.GITHUB_REF.replace(/^refs\/[^\/]+\//, '');
+            // The `tag` variable is set from the RELEASE_TAG environment variable,
+            // which comes from the `release_tag` input on the `workflow_dispatch` trigger.
+            const tag = process.env.RELEASE_TAG;
             try {
               const rel = await github.rest.repos.getReleaseByTag({
                 owner: context.repo.owner,
@@ -129,7 +130,7 @@ jobs:
                 repo: context.repo.repo,
                 tag_name: tag,
                 commitish: context.sha,
-                name: `ffmpeg ${tag}`,
+                name: `harvey-sidecars ${tag}`,
                 body: `Automated build of FFmpeg for ${process.env.MATRIX_FOLDER}`,
                 draft: false,
                 prerelease: false

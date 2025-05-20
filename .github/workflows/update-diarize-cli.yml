@@ -173,8 +173,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           result-encoding: string
           script: |
-            const base = process.env.RELEASE_TAG;
-            const tag = `${base}-diarize-cli`;
+            const tag = process.env.RELEASE_TAG;
             try {
               const rel = await github.rest.repos.getReleaseByTag({
                 owner: context.repo.owner,
@@ -188,7 +187,7 @@ jobs:
                 repo: context.repo.repo,
                 tag_name: tag,
                 commitish: context.sha,
-                name: `diarize-cli ${tag}`,
+                name: `harvey-sidecars ${tag}`,
                 body: `Automated build of diarize-cli for ${process.env.MATRIX_FOLDER}`,
                 draft: false,
                 prerelease: false
