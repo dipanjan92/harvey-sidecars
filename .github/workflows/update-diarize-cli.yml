@@ -11,29 +11,59 @@ on:
   workflow_call:     # Allows this workflow to be called by other workflows
 
 jobs:
-  build-macos-x86_64:
-    runs-on: macos-latest
+  build-diarize-matrix:
+    # Specifies the runner environment for the job
+    # Uses a matrix strategy to run on different operating systems
+    runs-on: ${{ matrix.os }}
+    
+    # Environment variables available to all steps in this job
     env:
-      HUGGINGFACE_TOKEN: ${{ secrets.HUGGINGFACE_TOKEN }}
+      HUGGINGFACE_TOKEN: ${{ secrets.HUGGINGFACE_TOKEN }} # Securely pass Hugging Face token
+      
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            folder: macos-x86_64
+          - os: macos-latest # Note: GitHub Actions macos-latest might run on arm64 or x86_64.
+                            # For explicit arm64 builds on macOS, you might need self-hosted runners
+                            # or specific configuration if GitHub-hosted runners provide it.
+                            # As of my last update, macos-14 is arm64 (Sonoma) and macos-13 is x64 (Ventura)
+                            # If 'macos-latest' points to an ARM runner, this duplicate might be redundant or
+                            # you might need to specify different architectures if PyInstaller/Python handles it.
+            folder: macos-arm64
+          - os: windows-latest
+            folder: windows-x86_64
+            
     defaults:
       run:
-        shell: bash
+        shell: bash # Sets the default shell for `run` steps
+
     steps:
+      # Step 1: Checkout the repository code
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          persist-credentials: true
-          fetch-depth: 0
+          persist-credentials: true # Persist credentials for git push
+          fetch-depth: 0            # Fetch all history for all branches and tags
+
+      # Step 2: Set up Python 3.11
       - name: Set up Python 3.11
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
+
+      # Step 3: Install Python dependencies
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install pyannote.audio huggingface_hub pyinstaller matplotlib lightning_fabric speechbrain
+
+      # Step 4: Log in to Hugging Face CLI
       - name: Log in to Hugging Face
         run: huggingface-cli login --token "$HUGGINGFACE_TOKEN"
+
+      # Step 5: Preload Pyannote pipeline and copy models from cache
       - name: Preload Pyannote pipeline and copy models
         run: |
           # Preload speaker diarization pipeline into cache
@@ -64,16 +94,30 @@ jobs:
 
           # Copy models to project folder using wildcard directories
           mkdir -p diarize-cli/models
-          for d in "$HF_CACHE_DIR"/models--pyannote--speaker-diarization*; do
-            [ -d "$d" ] && rsync -aL "$d" diarize-cli/models/
-          done
-          for d in "$HF_CACHE_DIR"/models--pyannote--segmentation*; do
-            [ -d "$d" ] && rsync -aL "$d" diarize-cli/models/
-          done
-          for d in "$HF_CACHE_DIR"/models--pyannote--wespeaker-voxceleb-resnet34-LM*; do
-            [ -d "$d" ] && rsync -aL "$d" diarize-cli/models/
-          done
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            for d in "$HF_CACHE_DIR"/models--pyannote--speaker-diarization*; do
+              [ -d "$d" ] && cp -LR "$d" diarize-cli/models/
+            done
+            for d in "$HF_CACHE_DIR"/models--pyannote--segmentation*; do
+              [ -d "$d" ] && cp -LR "$d" diarize-cli/models/
+            done
+            for d in "$HF_CACHE_DIR"/models--pyannote--wespeaker-voxceleb-resnet34-LM*; do
+              [ -d "$d" ] && cp -LR "$d" diarize-cli/models/
+            done
+          else
+            for d in "$HF_CACHE_DIR"/models--pyannote--speaker-diarization*; do
+              [ -d "$d" ] && rsync -aL "$d" diarize-cli/models/
+            done
+            for d in "$HF_CACHE_DIR"/models--pyannote--segmentation*; do
+              [ -d "$d" ] && rsync -aL "$d" diarize-cli/models/
+            done
+            for d in "$HF_CACHE_DIR"/models--pyannote--wespeaker-voxceleb-resnet34-LM*; do
+              [ -d "$d" ] && rsync -aL "$d" diarize-cli/models/
+            done
+          fi
 
+      # Step 6: Generate Matplotlib font cache
+      # This step is often needed when packaging Matplotlib applications
       - name: Generate Matplotlib font cache
         run: |
           python3 - << 'EOF'
@@ -104,6 +148,7 @@ jobs:
               print(f"Error rebuilding Matplotlib font cache: {e}")
           EOF
 
+      # Step 7: Copy Matplotlib cache to a location accessible by PyInstaller
       - name: Copy Matplotlib cache to resources
         run: |
           mkdir -p diarize-cli/resources/.matplotlib
@@ -119,8 +164,10 @@ jobs:
             fi
           else
             echo "Matplotlib cache directory not found: $MATPLOTLIB_CACHE_DIR"
+            # Optionally, fail the step if cache is critical: exit 1
           fi
 
+      # Step 8: Locate paths for Lightning-Fabric and SpeechBrain to be included by PyInstaller
       - name: Locate Lightning-Fabric and SpeechBrain paths
         run: |
           echo "Locating Lightning-Fabric and SpeechBrain paths..."
@@ -129,8 +176,11 @@ jobs:
 
           if [ -z "$LIGHT_INFO_PATH" ] || [ ! -f "$LIGHT_INFO_PATH" ]; then
             echo "::error::Lightning-Fabric version.info not found. Please check installation."
+            # Attempt to find the directory if version.info is not the target
             LIGHT_FABRIC_DIR=$(python3 -c "import lightning_fabric, os; print(os.path.dirname(lightning_fabric.__file__))" 2>/dev/null)
             echo "Lightning-Fabric directory found at: $LIGHT_FABRIC_DIR (if this is what you need to bundle, adjust --add-data)"
+            # If you need to bundle the whole lightning_fabric directory, the --add-data path should be $LIGHT_FABRIC_DIR:lightning_fabric
+            # For now, we'll set LIGHT_INFO to the directory if version.info is missing, assuming the intent is the package dir.
             LIGHT_INFO_PATH=$LIGHT_FABRIC_DIR 
           fi
           
@@ -146,17 +196,18 @@ jobs:
           echo "SPEECH_DIR=$SPEECH_DIR_PATH" >> $GITHUB_ENV
           echo "Paths set to GITHUB_ENV."
 
+      # Step 9: Build the executable with PyInstaller
       - name: Build with PyInstaller
         run: |
           echo "Starting PyInstaller build..."
           echo "Models path: diarize-cli/models"
-          ls -R diarize-cli/models
+          ls -R diarize-cli/models # List contents for debugging
           echo "Matplotlib cache resource path: diarize-cli/resources/.matplotlib"
-          ls -R diarize-cli/resources/.matplotlib
+          ls -R diarize-cli/resources/.matplotlib # List contents for debugging
           echo "Lightning Fabric path from env: ${LIGHT_INFO}"
-          ls -R "${LIGHT_INFO}"
+          ls -R "${LIGHT_INFO}" # List contents for debugging
           echo "SpeechBrain path from env: ${SPEECH_DIR}"
-          ls -R "${SPEECH_DIR}"
+          ls -R "${SPEECH_DIR}" # List contents for debugging
 
           pyinstaller --clean --onefile \
             --name diarize-cli \
@@ -171,378 +222,29 @@ jobs:
             diarize-cli/diarize_cli.py
           echo "PyInstaller build finished."
 
+      # Step 10: Copy the built binary to a structured folder
       - name: Copy diarize-cli binary
         run: |
-          mkdir -p diarize-cli/macos-x86_64
-          cp dist/diarize-cli diarize-cli/macos-x86_64/diarize-cli
-          chmod +x diarize-cli/macos-x86_64/diarize-cli
-          echo "Copied diarize-cli to diarize-cli/macos-x86_64/"
+          mkdir -p diarize-cli/${{ matrix.folder }}
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            cp dist/diarize-cli.exe diarize-cli/${{ matrix.folder }}/diarize-cli.exe
+            chmod +x diarize-cli/${{ matrix.folder }}/diarize-cli.exe
+            echo "Copied diarize-cli.exe to diarize-cli/${{ matrix.folder }}/"
+          else
+            cp dist/diarize-cli diarize-cli/${{ matrix.folder }}/diarize-cli
+            chmod +x diarize-cli/${{ matrix.folder }}/diarize-cli
+            echo "Copied diarize-cli to diarize-cli/${{ matrix.folder }}/"
+          fi
+          ls -l diarize-cli/${{ matrix.folder }}/ # Verify copy
 
-      - name: Commit and push binary for macos-x86_64
+      - name: Commit and push binary for this runner's folder
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add diarize-cli/macos-x86_64
-          git diff --cached --quiet || git commit -m "chore: update diarize-cli for macos-x86_64 [skip ci]"
-          git pull --rebase --autostash origin main
-          git push origin main
-
-  build-macos-arm64:
-    needs: build-macos-x86_64
-    runs-on: macos-latest
-    env:
-      HUGGINGFACE_TOKEN: ${{ secrets.HUGGINGFACE_TOKEN }}
-    defaults:
-      run:
-        shell: bash
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: true
-          fetch-depth: 0
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install pyannote.audio huggingface_hub pyinstaller matplotlib lightning_fabric speechbrain
-      - name: Log in to Hugging Face
-        run: huggingface-cli login --token "$HUGGINGFACE_TOKEN"
-      - name: Preload Pyannote pipeline and copy models
-        run: |
-          # Preload speaker diarization pipeline into cache
-          python3 - << 'EOF'
-          import os
-          from pyannote.audio import Pipeline
-
-          # Initialize pipeline to force model download into cache
-          Pipeline.from_pretrained(
-              "pyannote/speaker-diarization-3.1",
-              use_auth_token=os.environ["HUGGINGFACE_TOKEN"]
-          )
-          EOF
-
-          # Define Pyannote cache directory
-          HF_CACHE_DIR="${HOME}/.cache/torch/pyannote"
-          echo "HF_CACHE_DIR is: $HF_CACHE_DIR"
-          ls -l "$HF_CACHE_DIR"
-          echo "Checking individual model cache directories:"
-          echo "Speaker diarization dirs:" 
-          ls -d "$HF_CACHE_DIR"/models--pyannote--speaker-diarization* || echo "  None found"
-          echo "Segmentation dirs:" 
-          ls -d "$HF_CACHE_DIR"/models--pyannote--segmentation* || echo "  None found"
-          echo "Embedding dirs:" 
-          ls -d "$HF_CACHE_DIR"/models--pyannote--wespeaker-voxceleb-resnet34-LM* || echo "  None found"
-          echo "Listing full ~/.cache/torch contents:"
-          ls -R "${HOME}/.cache/torch"
-
-          # Copy models to project folder using wildcard directories
-          mkdir -p diarize-cli/models
-          for d in "$HF_CACHE_DIR"/models--pyannote--speaker-diarization*; do
-            [ -d "$d" ] && rsync -aL "$d" diarize-cli/models/
-          done
-          for d in "$HF_CACHE_DIR"/models--pyannote--segmentation*; do
-            [ -d "$d" ] && rsync -aL "$d" diarize-cli/models/
-          done
-          for d in "$HF_CACHE_DIR"/models--pyannote--wespeaker-voxceleb-resnet34-LM*; do
-            [ -d "$d" ] && rsync -aL "$d" diarize-cli/models/
-          done
-
-      - name: Generate Matplotlib font cache
-        run: |
-          python3 - << 'EOF'
-          import os
-          import matplotlib as mpl
-          from matplotlib import font_manager as fm
-
-          print("Attempting to rebuild Matplotlib font cache...")
-          cache_dir = mpl.get_cachedir()
-          print(f"Matplotlib cache directory: {cache_dir}")
-
-          # Remove existing font list cache files to force regeneration
-          for fname in ("fontList.json", "fontList.py3k.cache", "fontlist-v330.json"):
-              p = os.path.join(cache_dir, fname)
-              if os.path.exists(p):
-                  try:
-                      os.remove(p)
-                      print(f"Removed existing cache file: {p}")
-                  except OSError as e:
-                      print(f"Error removing {p}: {e}")
-
-          # Rebuild the font cache
-          try:
-              fm.findSystemFonts(fontpaths=None, fontext='ttf')
-              _ = fm.fontManager
-              print("Matplotlib font cache rebuilt successfully.")
-          except Exception as e:
-              print(f"Error rebuilding Matplotlib font cache: {e}")
-          EOF
-
-      - name: Copy Matplotlib cache to resources
-        run: |
-          mkdir -p diarize-cli/resources/.matplotlib
-          MATPLOTLIB_CACHE_DIR=$(python3 -c 'import matplotlib as mpl; print(mpl.get_cachedir())')
-          if [ -d "$MATPLOTLIB_CACHE_DIR" ]; then
-            echo "Copying Matplotlib cache from $MATPLOTLIB_CACHE_DIR to diarize-cli/resources/.matplotlib"
-            if command -v rsync &> /dev/null; then
-              rsync -av --exclude='*.lock' "$MATPLOTLIB_CACHE_DIR/" diarize-cli/resources/.matplotlib/
-            else
-              cp -R "$MATPLOTLIB_CACHE_DIR/." diarize-cli/resources/.matplotlib/
-            fi
-          else
-            echo "Matplotlib cache directory not found: $MATPLOTLIB_CACHE_DIR"
-          fi
-
-      - name: Locate Lightning-Fabric and SpeechBrain paths
-        run: |
-          echo "Locating Lightning-Fabric and SpeechBrain paths..."
-          LIGHT_INFO_PATH=$(python3 -c "import lightning_fabric, os; print(os.path.join(os.path.dirname(lightning_fabric.__file__), 'version.info'))" 2>/dev/null)
-          SPEECH_DIR_PATH=$(python3 -c "import speechbrain, os; print(os.path.dirname(speechbrain.__file__))" 2>/dev/null)
-
-          if [ -z "$LIGHT_INFO_PATH" ] || [ ! -f "$LIGHT_INFO_PATH" ]; then
-            echo "::error::Lightning-Fabric version.info not found. Please check installation."
-            LIGHT_FABRIC_DIR=$(python3 -c "import lightning_fabric, os; print(os.path.dirname(lightning_fabric.__file__))" 2>/dev/null)
-            echo "Lightning-Fabric directory found at: $LIGHT_FABRIC_DIR (if this is what you need to bundle, adjust --add-data)"
-            LIGHT_INFO_PATH=$LIGHT_FABRIC_DIR 
-          fi
-          
-          if [ -z "$SPEECH_DIR_PATH" ] || [ ! -d "$SPEECH_DIR_PATH" ]; then
-            echo "::error::SpeechBrain directory not found. Please check installation."
-            exit 1
-          fi
-          
-          echo "LIGHT_INFO_PATH=$LIGHT_INFO_PATH"
-          echo "SPEECH_DIR_PATH=$SPEECH_DIR_PATH"
-          
-          echo "LIGHT_INFO=$LIGHT_INFO_PATH" >> $GITHUB_ENV
-          echo "SPEECH_DIR=$SPEECH_DIR_PATH" >> $GITHUB_ENV
-          echo "Paths set to GITHUB_ENV."
-
-      - name: Build with PyInstaller
-        run: |
-          echo "Starting PyInstaller build..."
-          echo "Models path: diarize-cli/models"
-          ls -R diarize-cli/models
-          echo "Matplotlib cache resource path: diarize-cli/resources/.matplotlib"
-          ls -R diarize-cli/resources/.matplotlib
-          echo "Lightning Fabric path from env: ${LIGHT_INFO}"
-          ls -R "${LIGHT_INFO}"
-          echo "SpeechBrain path from env: ${SPEECH_DIR}"
-          ls -R "${SPEECH_DIR}"
-
-          pyinstaller --clean --onefile \
-            --name diarize-cli \
-            --add-data "diarize-cli/models:models" \
-            --add-data "diarize-cli/resources/.matplotlib:resources/.matplotlib" \
-            --add-data "${LIGHT_INFO}:lightning_fabric" \
-            --add-data "${SPEECH_DIR}:speechbrain" \
-            --hidden-import=pyannote.audio.pipelines \
-            --hidden-import=pyannote.audio.models \
-            --hidden-import=pyannote.audio.models.segmentation \
-            --hidden-import=pyannote.audio.models.embedding \
-            diarize-cli/diarize_cli.py
-          echo "PyInstaller build finished."
-
-      - name: Copy diarize-cli binary
-        run: |
-          mkdir -p diarize-cli/macos-arm64
-          cp dist/diarize-cli diarize-cli/macos-arm64/diarize-cli
-          chmod +x diarize-cli/macos-arm64/diarize-cli
-          echo "Copied diarize-cli to diarize-cli/macos-arm64/"
-
-      - name: Commit and push binary for macos-arm64
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add diarize-cli/macos-arm64
-          git diff --cached --quiet || git commit -m "chore: update diarize-cli for macos-arm64 [skip ci]"
-          git pull --rebase --autostash origin main
-          git push origin main
-
-  build-windows-x86_64:
-    needs: build-macos-arm64
-    runs-on: windows-latest
-    env:
-      HUGGINGFACE_TOKEN: ${{ secrets.HUGGINGFACE_TOKEN }}
-    defaults:
-      run:
-        shell: bash
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: true
-          fetch-depth: 0
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install pyannote.audio huggingface_hub pyinstaller matplotlib lightning_fabric speechbrain
-      - name: Log in to Hugging Face
-        run: huggingface-cli login --token "$HUGGINGFACE_TOKEN"
-      - name: Preload Pyannote pipeline and copy models
-        run: |
-          # Preload speaker diarization pipeline into cache
-          python3 - << 'EOF'
-          import os
-          from pyannote.audio import Pipeline
-
-          # Initialize pipeline to force model download into cache
-          Pipeline.from_pretrained(
-              "pyannote/speaker-diarization-3.1",
-              use_auth_token=os.environ["HUGGINGFACE_TOKEN"]
-          )
-          EOF
-
-          # Define Pyannote cache directory
-          HF_CACHE_DIR="${HOME}/.cache/torch/pyannote"
-          echo "HF_CACHE_DIR is: $HF_CACHE_DIR"
-          ls -l "$HF_CACHE_DIR"
-          echo "Checking individual model cache directories:"
-          echo "Speaker diarization dirs:" 
-          ls -d "$HF_CACHE_DIR"/models--pyannote--speaker-diarization* || echo "  None found"
-          echo "Segmentation dirs:" 
-          ls -d "$HF_CACHE_DIR"/models--pyannote--segmentation* || echo "  None found"
-          echo "Embedding dirs:" 
-          ls -d "$HF_CACHE_DIR"/models--pyannote--wespeaker-voxceleb-resnet34-LM* || echo "  None found"
-          echo "Listing full ~/.cache/torch contents:"
-          ls -R "${HOME}/.cache/torch"
-
-          # Copy models to project folder using wildcard directories
-          mkdir -p diarize-cli/models
-          if [[ "$(uname -s)" == *"MINGW"* || "$(uname -s)" == *"CYGWIN"* || "$(uname -s)" == *"MSYS"* ]]; then
-            for d in "$HF_CACHE_DIR"/models--pyannote--speaker-diarization*; do
-              [ -d "$d" ] && cp -LR "$d" diarize-cli/models/
-            done
-            for d in "$HF_CACHE_DIR"/models--pyannote--segmentation*; do
-              [ -d "$d" ] && cp -LR "$d" diarize-cli/models/
-            done
-            for d in "$HF_CACHE_DIR"/models--pyannote--wespeaker-voxceleb-resnet34-LM*; do
-              [ -d "$d" ] && cp -LR "$d" diarize-cli/models/
-            done
-          else
-            for d in "$HF_CACHE_DIR"/models--pyannote--speaker-diarization*; do
-              [ -d "$d" ] && rsync -aL "$d" diarize-cli/models/
-            done
-            for d in "$HF_CACHE_DIR"/models--pyannote--segmentation*; do
-              [ -d "$d" ] && rsync -aL "$d" diarize-cli/models/
-            done
-            for d in "$HF_CACHE_DIR"/models--pyannote--wespeaker-voxceleb-resnet34-LM*; do
-              [ -d "$d" ] && rsync -aL "$d" diarize-cli/models/
-            done
-          fi
-
-      - name: Generate Matplotlib font cache
-        run: |
-          python3 - << 'EOF'
-          import os
-          import matplotlib as mpl
-          from matplotlib import font_manager as fm
-
-          print("Attempting to rebuild Matplotlib font cache...")
-          cache_dir = mpl.get_cachedir()
-          print(f"Matplotlib cache directory: {cache_dir}")
-
-          for fname in ("fontList.json", "fontList.py3k.cache", "fontlist-v330.json"):
-              p = os.path.join(cache_dir, fname)
-              if os.path.exists(p):
-                  try:
-                      os.remove(p)
-                      print(f"Removed existing cache file: {p}")
-                  except OSError as e:
-                      print(f"Error removing {p}: {e}")
-
-          try:
-              fm.findSystemFonts(fontpaths=None, fontext='ttf')
-              _ = fm.fontManager
-              print("Matplotlib font cache rebuilt successfully.")
-          except Exception as e:
-              print(f"Error rebuilding Matplotlib font cache: {e}")
-          EOF
-
-      - name: Copy Matplotlib cache to resources
-        run: |
-          mkdir -p diarize-cli/resources/.matplotlib
-          MATPLOTLIB_CACHE_DIR=$(python3 -c 'import matplotlib as mpl; print(mpl.get_cachedir())')
-          if [ -d "$MATPLOTLIB_CACHE_DIR" ]; then
-            echo "Copying Matplotlib cache from $MATPLOTLIB_CACHE_DIR to diarize-cli/resources/.matplotlib"
-            if command -v rsync &> /dev/null; then
-              rsync -av --exclude='*.lock' "$MATPLOTLIB_CACHE_DIR/" diarize-cli/resources/.matplotlib/
-            else
-              cp -R "$MATPLOTLIB_CACHE_DIR/." diarize-cli/resources/.matplotlib/
-            fi
-          else
-            echo "Matplotlib cache directory not found: $MATPLOTLIB_CACHE_DIR"
-          fi
-
-      - name: Locate Lightning-Fabric and SpeechBrain paths
-        run: |
-          echo "Locating Lightning-Fabric and SpeechBrain paths..."
-          LIGHT_INFO_PATH=$(python3 -c "import lightning_fabric, os; print(os.path.join(os.path.dirname(lightning_fabric.__file__), 'version.info'))" 2>/dev/null)
-          SPEECH_DIR_PATH=$(python3 -c "import speechbrain, os; print(os.path.dirname(speechbrain.__file__))" 2>/dev/null)
-
-          if [ -z "$LIGHT_INFO_PATH" ] || [ ! -f "$LIGHT_INFO_PATH" ]; then
-            echo "::error::Lightning-Fabric version.info not found. Please check installation."
-            LIGHT_FABRIC_DIR=$(python3 -c "import lightning_fabric, os; print(os.path.dirname(lightning_fabric.__file__))" 2>/dev/null)
-            echo "Lightning-Fabric directory found at: $LIGHT_FABRIC_DIR (if this is what you need to bundle, adjust --add-data)"
-            LIGHT_INFO_PATH=$LIGHT_FABRIC_DIR 
-          fi
-          
-          if [ -z "$SPEECH_DIR_PATH" ] || [ ! -d "$SPEECH_DIR_PATH" ]; then
-            echo "::error::SpeechBrain directory not found. Please check installation."
-            exit 1
-          fi
-          
-          echo "LIGHT_INFO_PATH=$LIGHT_INFO_PATH"
-          echo "SPEECH_DIR_PATH=$SPEECH_DIR_PATH"
-          
-          echo "LIGHT_INFO=$LIGHT_INFO_PATH" >> $GITHUB_ENV
-          echo "SPEECH_DIR=$SPEECH_DIR_PATH" >> $GITHUB_ENV
-          echo "Paths set to GITHUB_ENV."
-
-      - name: Build with PyInstaller
-        run: |
-          echo "Starting PyInstaller build..."
-          echo "Models path: diarize-cli/models"
-          ls -R diarize-cli/models
-          echo "Matplotlib cache resource path: diarize-cli/resources/.matplotlib"
-          ls -R diarize-cli/resources/.matplotlib
-          echo "Lightning Fabric path from env: ${LIGHT_INFO}"
-          ls -R "${LIGHT_INFO}"
-          echo "SpeechBrain path from env: ${SPEECH_DIR}"
-          ls -R "${SPEECH_DIR}"
-
-          pyinstaller --clean --onefile \
-            --name diarize-cli \
-            --add-data "diarize-cli/models:models" \
-            --add-data "diarize-cli/resources/.matplotlib:resources/.matplotlib" \
-            --add-data "${LIGHT_INFO}:lightning_fabric" \
-            --add-data "${SPEECH_DIR}:speechbrain" \
-            --hidden-import=pyannote.audio.pipelines \
-            --hidden-import=pyannote.audio.models \
-            --hidden-import=pyannote.audio.models.segmentation \
-            --hidden-import=pyannote.audio.models.embedding \
-            diarize-cli/diarize_cli.py
-          echo "PyInstaller build finished."
-
-      - name: Copy diarize-cli binary
-        run: |
-          mkdir -p diarize-cli/windows-x86_64
-          cp dist/diarize-cli.exe diarize-cli/windows-x86_64/diarize-cli.exe
-          chmod +x diarize-cli/windows-x86_64/diarize-cli.exe
-          echo "Copied diarize-cli.exe to diarize-cli/windows-x86_64/"
-
-      - name: Commit and push binary for windows-x86_64
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add diarize-cli/windows-x86_64
-          git diff --cached --quiet || git commit -m "chore: update diarize-cli for windows-x86_64 [skip ci]"
-          git pull --rebase --autostash origin main
+          # Sync to the latest main
+          git fetch origin main
+          git reset --hard origin/main
+          # Stage and commit updated binary only
+          git add diarize-cli/${{ matrix.folder }}
+          git diff --cached --quiet || git commit -m "chore: update diarize-cli for ${{ matrix.folder }} [skip ci]"
           git push origin main
