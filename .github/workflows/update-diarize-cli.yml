@@ -237,14 +237,22 @@ jobs:
           fi
           ls -l diarize-cli/${{ matrix.folder }}/ # Verify copy
 
-      - name: Commit and push binary for this runner's folder
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          # Sync to the latest main
-          git fetch origin main
-          git reset --hard origin/main
-          # Stage and commit updated binary only
-          git add diarize-cli/${{ matrix.folder }}
-          git diff --cached --quiet || git commit -m "chore: update diarize-cli for ${{ matrix.folder }} [skip ci]"
-          git push origin main
+      # Step: Create or fetch a release for this tag
+      - name: Create or get GitHub release
+        id: create_release
+        uses: actions/create-release@v1
+        with:
+          tag_name: ${{ github.ref_name || 'latest' }}
+          release_name: "diarize-cli ${{ github.ref_name || 'latest' }}"
+          body: "Automated build of diarize-cli for ${{ matrix.folder }}"
+          draft: false
+          prerelease: false
+
+      # Step: Upload the binary to the release
+      - name: Upload diarize-cli asset
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: diarize-cli/${{ matrix.folder }}/diarize-cli${{ matrix.os == 'windows-latest' && '.exe' || '' }}
+          asset_name: diarize-cli-${{ matrix.folder }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}
+          asset_content_type: application/octet-stream
