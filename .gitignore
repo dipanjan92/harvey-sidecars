@@ -1,0 +1,18 @@
+
+
+# Ignore zip archives (intermediate download artifacts)
+*.zip
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Editor directories
+.vscode/
+.idea/
+
+# Log files
+*.log # Add a newline for separation if file exists

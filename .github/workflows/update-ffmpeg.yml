@@ -1,0 +1,85 @@
+name: Build FFmpeg From Source
+
+permissions:
+  contents: write
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+env:
+  FFMPEG_TAG: "release/4.4"
+
+jobs:
+  ffmpeg:
+    runs-on: ${{ matrix.os }}
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            folder: macos-arm64
+            type: build
+            install_deps: |
+              brew install yasm pkg-config nasm
+            cpu_count: "$(sysctl -n hw.logicalcpu)"
+            configure_opts: "--arch=arm64"
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Install build prerequisites
+        if: matrix.type == 'build'
+        run: |
+          echo "Installing build dependencies on $RUNNER_OS..."
+          ${{ matrix.install_deps }}
+
+      - name: Clone FFmpeg source
+        if: matrix.type == 'build'
+        run: |
+          git clone --depth 1 --branch "$FFMPEG_TAG" https://git.ffmpeg.org/ffmpeg.git ffmpeg-src
+
+      - name: Configure & build FFmpeg
+        if: matrix.type == 'build'
+        run: |
+          mkdir -p ffmpeg/${{ matrix.folder }}
+          cd ffmpeg-src
+          ./configure \
+            --prefix="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}" \
+            --disable-shared \
+            --enable-static \
+            --disable-doc \
+            ${{ matrix.configure_opts }}
+          make -j${{ matrix.cpu_count }}
+          make install
+
+      - name: Trim macOS ARM64 build
+        if: matrix.folder == 'macos-arm64'
+        run: |
+          rm -rf ffmpeg/${{ matrix.folder }}/include \
+                 ffmpeg/${{ matrix.folder }}/lib \
+                 ffmpeg/${{ matrix.folder }}/share
+          rm -f ffmpeg/${{ matrix.folder }}/bin/ffprobe
+          mv ffmpeg/${{ matrix.folder }}/bin/ffmpeg ffmpeg/${{ matrix.folder }}/ffmpeg
+          rm -rf ffmpeg/${{ matrix.folder }}/bin
+
+      - name: Commit & push FFmpeg binaries
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add ffmpeg/${{ matrix.folder }}
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: update FFmpeg for ${{ matrix.folder }} [skip ci]"
+            git pull --rebase
+            git push
+          else
+            echo "No changes to commit"
+          fi
