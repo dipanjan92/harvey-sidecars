@@ -61,7 +61,10 @@ jobs:
 
       # Step 4: Log in to Hugging Face CLI
       - name: Log in to Hugging Face
-        run: huggingface-cli login --token "$HUGGINGFACE_TOKEN" --add-to-git-credential
+        uses: huggingface/actions/login@v1
+        with:
+          token: ${{ secrets.HUGGINGFACE_TOKEN }}
+          add-to-git-credential: true
 
       # Step 5: Preload Pyannote pipeline and copy models from cache
       - name: Preload Pyannote pipeline and copy models
