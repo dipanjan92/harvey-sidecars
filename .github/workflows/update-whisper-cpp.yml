@@ -59,7 +59,7 @@ jobs:
         run: |
           mkdir -p whisper.cpp/build
           cd whisper.cpp/build
-          cmake .. -DCMAKE_BUILD_TYPE=Release ${{ matrix.cmake_opts }}
+          cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF ${{ matrix.cmake_opts }}
           cmake --build . --config Release
 
       # 5. Copy the binary into our sidecar folder
@@ -67,9 +67,9 @@ jobs:
         run: |
           mkdir -p whisper-cpp/${{ matrix.folder }}
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            cp whisper.cpp/build/bin/Release/whisper-cpp.exe whisper-cpp/${{ matrix.folder }}/whisper-cpp.exe
+            cp whisper.cpp/build/bin/Release/whisper-cli.exe whisper-cpp/${{ matrix.folder }}/whisper-cpp.exe
           else
-            cp whisper.cpp/build/bin/whisper-cpp whisper-cpp/${{ matrix.folder }}/whisper-cpp
+            cp whisper.cpp/build/bin/whisper-cli whisper-cpp/${{ matrix.folder }}/whisper-cpp
           fi
 
       # 6. Ensure GitHub release exists (create if missing)
