@@ -54,8 +54,8 @@ jobs:
       - name: Clone whisper.cpp
         run: git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git whisper.cpp
 
-      # 4. Build whisper-cli
-      - name: Build whisper-cli
+      # 4. Build whisper-cpp
+      - name: Build whisper-cpp
         run: |
           mkdir -p whisper.cpp/build
           cd whisper.cpp/build
@@ -63,13 +63,13 @@ jobs:
           cmake --build . --config Release
 
       # 5. Copy the binary into our sidecar folder
-      - name: Copy whisper-cli binary
+      - name: Copy whisper-cpp binary
         run: |
           mkdir -p whisper-cpp/${{ matrix.folder }}
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            cp whisper.cpp/build/bin/Release/whisper-cli.exe whisper-cpp/${{ matrix.folder }}/whisper-cli.exe
+            cp whisper.cpp/build/bin/Release/whisper-cpp.exe whisper-cpp/${{ matrix.folder }}/whisper-cpp.exe
           else
-            cp whisper.cpp/build/bin/whisper-cli whisper-cpp/${{ matrix.folder }}/whisper-cli
+            cp whisper.cpp/build/bin/whisper-cpp whisper-cpp/${{ matrix.folder }}/whisper-cpp
           fi
 
       # 6. Ensure GitHub release exists (create if missing)
@@ -96,20 +96,20 @@ jobs:
                 tag_name: tag,
                 commitish: context.sha,
                 name: `harvey-sidecars ${tag}`,
-                body: `Automated build of whisper-cli for ${process.env.MATRIX_FOLDER}`,
+                body: `Automated build of whisper-cpp for ${process.env.MATRIX_FOLDER}`,
                 draft: false,
                 prerelease: false
               });
               return rel.data.upload_url;
             }
 
-      # 7. Upload whisper-cli to that release
-      - name: Upload whisper-cli asset
+      # 7. Upload whisper-cpp to that release
+      - name: Upload whisper-cpp asset
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.ensure_release.outputs.result }}
-          asset_path: whisper-cpp/${{ matrix.folder }}/whisper-cli${{ matrix.os == 'windows-latest' && '.exe' || '' }}
-          asset_name: whisper-cli-${{ matrix.folder }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}
+          asset_path: whisper-cpp/${{ matrix.folder }}/whisper-cpp${{ matrix.os == 'windows-latest' && '.exe' || '' }}
+          asset_name: whisper-cpp-${{ matrix.folder }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}
           asset_content_type: application/octet-stream
