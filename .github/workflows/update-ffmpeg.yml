@@ -12,7 +12,7 @@ on:
   workflow_call:
 
 env:
-  FFMPEG_TAG: "n6.0"
+  FFMPEG_TAG: "n5.1.4" # Changed from n6.0
 
 jobs:
   ffmpeg:
@@ -25,13 +25,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-latest
+          - os: macos-latest # For arm64
             folder: macos-arm64
             type: build
             install_deps: |
               brew install yasm pkg-config nasm
-            configure_opts: "--arch=arm64 --disable-gpl --disable-ffplay --disable-ffprobe --enable-protocol=file" # Added --disable-gpl
-          - os: macos-latest
+            configure_opts: "--arch=arm64 --disable-gpl --disable-ffplay --disable-ffprobe --enable-protocol=file"
+          - os: macos-13 # For x86_64 - Changed from macos-latest
             folder: macos-x86_64
             type: build
             install_deps: |
@@ -40,7 +40,7 @@ jobs:
           - os: windows-latest
             folder: windows-x86_64
             type: build
-            configure_opts: "--disable-gpl --target-os=win64 --disable-ffplay --disable-ffprobe --enable-protocol=file --disable-asm" # Added --disable-asm
+            configure_opts: "--disable-gpl --target-os=win64 --disable-ffplay --disable-ffprobe --enable-protocol=file --disable-asm"
     defaults:
       run:
         shell: bash
@@ -65,15 +65,24 @@ jobs:
             mingw-w64-x86_64-pkg-config
 
       - name: Install build prerequisites (macOS)
-        if: matrix.os == 'macos-latest' && matrix.type == 'build' && matrix.install_deps != ''
+        if: matrix.os == 'macos-latest' || matrix.os == 'macos-13' # Adjusted for specific OS versions
+        # The matrix.install_deps will only be non-empty for folder == 'macos-arm64' or 'macos-x86_64' if we keep it there
+        # For x86_64, it's for consistency, Homebrew ffmpeg will manage its own deps primarily
+        # For arm64, it's for the source build
         run: |
           echo "Installing build dependencies on $RUNNER_OS for ${{ matrix.folder }}..."
-          ${{ matrix.install_deps }}
+          # Only run if matrix.install_deps is defined for the job
+          if [[ -n "${{ matrix.install_deps }}" ]]; then
+            ${{ matrix.install_deps }}
+          else
+            echo "No specific install_deps for this macOS job."
+          fi
 
       - name: Clone FFmpeg source
         if: matrix.type == 'build' && (matrix.folder == 'macos-arm64' || matrix.folder == 'windows-x86_64')
         run: |
           echo "Cloning FFmpeg source branch/tag: $FFMPEG_TAG for ${{ matrix.folder }}"
+          rm -rf ffmpeg-src # Clean before clone
           git clone --depth 1 --branch "$FFMPEG_TAG" https://git.ffmpeg.org/ffmpeg.git ffmpeg-src
 
       # ---- Configure & build FFmpeg (Windows) ----
@@ -193,7 +202,7 @@ jobs:
           # ... (content unchanged, will not run) ...
           mkdir -p ffmpeg/${{ matrix.folder }}
           cd ffmpeg/${{ matrix.folder }}
-          if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+          if [[ "${{ matrix.os }}" == "macos-latest" ]]; then # This condition might need update if macos-latest is ambiguous
             curl -L "${{ matrix.download_url }}" -o ffmpeg.zip
             unzip -j ffmpeg.zip ffmpeg
             rm ffmpeg.zip
