@@ -12,7 +12,7 @@ on:
   workflow_call:
 
 env:
-  FFMPEG_TAG: "n5.1.4" # Changed from n6.0
+  FFMPEG_TAG: "n5.1.4" # Using FFmpeg 5.1.4
 
 jobs:
   ffmpeg:
@@ -59,7 +59,7 @@ jobs:
               --enable-libvorbis
               --enable-videotoolbox
 
-          - os: macos-13 # For x86_64 - Changed from macos-latest
+          - os: macos-13 # For x86_64
             folder: macos-x86_64
             type: build
             install_deps: |
@@ -96,6 +96,7 @@ jobs:
           - os: windows-latest
             folder: windows-x86_64
             type: build
+            # No specific install_deps here as MSYS2 handles it in a later step
             configure_opts: >-
               --target-os=win64
               --disable-asm
@@ -151,8 +152,8 @@ jobs:
             mingw-w64-x86_64-pkg-config
             mingw-w64-x86_64-openh264
             mingw-w64-x86_64-libvorbis
-            # mingw-w64-x86_64-zlib # zlib is often a base package, but explicitly if needed
-            # mingw-w64-x86_64-libiconv # iconv is often a base package
+            mingw-w64-x86_64-zlib 
+            mingw-w64-x86_64-libiconv
 
       - name: Install build prerequisites (macOS)
         if: (matrix.os == 'macos-latest' || matrix.os == 'macos-13') && matrix.type == 'build'
@@ -165,23 +166,18 @@ jobs:
           fi
 
       - name: Clone FFmpeg source
-        if: matrix.type == 'build' && (matrix.folder == 'macos-arm64' || matrix.folder == 'windows-x86_64' || matrix.folder == 'macos-x86_64')
+        if: matrix.type == 'build'
         run: |
           echo "Cloning FFmpeg source branch/tag: $FFMPEG_TAG for ${{ matrix.folder }}"
           rm -rf ffmpeg-src # Clean before clone
           git clone --depth 1 --branch "$FFMPEG_TAG" https://git.ffmpeg.org/ffmpeg.git ffmpeg-src
 
-      # ---- Configure & build FFmpeg (Common options used, platform specifics in matrix.configure_opts) ----
-      - name: Configure & build FFmpeg
-        if: matrix.type == 'build'
-        shell: ${{ matrix.os == 'windows-latest' && 'msys2 {0}' || 'bash' }}
+      - name: Configure & build FFmpeg (Windows)
+        if: matrix.type == 'build' && matrix.os == 'windows-latest'
+        shell: msys2 {0}
         run: |
           echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
-          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            CPU_COUNT=$(nproc)
-          else
-            CPU_COUNT=$(sysctl -n hw.logicalcpu)
-          fi
+          CPU_COUNT=$(nproc)
           echo "Using $CPU_COUNT cores for make"
           
           INSTALL_PREFIX="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
@@ -189,26 +185,62 @@ jobs:
           cd ffmpeg-src
           echo "Current directory: $(pwd)"
           
-          # Common configure flags
-          CONFIGURE_FLAGS=(
+          # Base configure flags that are common for this script's logic
+          BASE_CONFIGURE_FLAGS=(
             --prefix="${INSTALL_PREFIX}"
             --disable-shared
             --enable-static
-            --pkg-config-flags="--static" # Try to link external libraries statically
+            --pkg-config-flags="--static" 
           )
           
-          # Add matrix specific configure options
-          IFS=' ' read -r -a MATRIX_OPTS <<< "${{ matrix.configure_opts }}"
-          CONFIGURE_FLAGS+=("${MATRIX_OPTS[@]}")
+          # Matrix specific configure options (contains the long list of enables/disables)
+          # These are already formatted as a single string with spaces in the matrix.
+          # We need to be careful how these are passed if they contain spaces themselves,
+          # but FFmpeg configure options are typically space-separated.
           
-          echo "Running configure with opts: ${CONFIGURE_FLAGS[@]}"
-          ./configure "${CONFIGURE_FLAGS[@]}"
+          echo "Running configure with matrix opts: ${{ matrix.configure_opts }}"
+          echo "and base script opts: ${BASE_CONFIGURE_FLAGS[@]}"
+
+          # Simply append the matrix.configure_opts string
+          # The shell will split it by spaces.
+          # Ensure matrix.configure_opts itself doesn't have complex quoting issues for this.
+          # The provided matrix.configure_opts is a multi-line string which YAML converts to a single string with newlines replaced by spaces.
+          # This should be fine for configure scripts that expect space-separated options.
+          ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }}
           
           make -j${CPU_COUNT}
           make install
           cd ..
 
-      # ---- Trim Build Steps (Unchanged from your original) ----
+      - name: Configure & build FFmpeg (macOS)
+        if: matrix.type == 'build' && (matrix.os == 'macos-latest' || matrix.os == 'macos-13')
+        shell: bash
+        run: |
+          echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
+          CPU_COUNT=$(sysctl -n hw.logicalcpu)
+          echo "Using $CPU_COUNT cores for make"
+          
+          INSTALL_PREFIX="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
+          mkdir -p "${INSTALL_PREFIX}"
+          cd ffmpeg-src
+          echo "Current directory: $(pwd)"
+          
+          BASE_CONFIGURE_FLAGS=(
+            --prefix="${INSTALL_PREFIX}"
+            --disable-shared
+            --enable-static
+            --pkg-config-flags="--static"
+          )
+          
+          echo "Running configure with matrix opts: ${{ matrix.configure_opts }}"
+          echo "and base script opts: ${BASE_CONFIGURE_FLAGS[@]}"
+
+          ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }}
+          
+          make -j${CPU_COUNT}
+          make install
+          cd ..
+
       - name: Trim Build (Windows)
         if: matrix.type == 'build' && matrix.folder == 'windows-x86_64'
         shell: msys2 {0}
@@ -219,8 +251,10 @@ jobs:
           echo "Looking for ffmpeg executable in ${INSTALL_DIR}/bin/"
           ls -l "${INSTALL_DIR}/bin/"
           if [[ -f "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}" ]]; then
+            # Optionally strip the binary on Windows too
+            strip "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}"
             mv "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}" "${INSTALL_DIR}/${FINAL_EXE_NAME}"
-            echo "Moved ${FINAL_EXE_NAME} to ${INSTALL_DIR}/"
+            echo "Moved and stripped ${FINAL_EXE_NAME} to ${INSTALL_DIR}/"
           else
             echo "Error: ${FINAL_EXE_NAME} not found in ${INSTALL_DIR}/bin/"
             find "${INSTALL_DIR}" -name ${FINAL_EXE_NAME} -print
@@ -240,7 +274,6 @@ jobs:
           echo "Looking for ffmpeg executable in ${INSTALL_DIR}/bin/"
           ls -l "${INSTALL_DIR}/bin/"
           if [[ -f "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}" ]]; then
-            # Strip the binary
             strip "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}"
             mv "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}" "${INSTALL_DIR}/${FINAL_EXE_NAME}"
             echo "Moved and stripped ${FINAL_EXE_NAME} to ${INSTALL_DIR}/"
@@ -263,7 +296,6 @@ jobs:
           echo "Looking for ffmpeg executable in ${INSTALL_DIR}/bin/"
           ls -l "${INSTALL_DIR}/bin/"
           if [[ -f "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}" ]]; then
-            # Strip the binary
             strip "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}"
             mv "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}" "${INSTALL_DIR}/${FINAL_EXE_NAME}"
             echo "Moved and stripped ${FINAL_EXE_NAME} to ${INSTALL_DIR}/"
@@ -277,29 +309,35 @@ jobs:
           echo "Contents of ${INSTALL_DIR} after trim:"
           ls -R "${INSTALL_DIR}"
       
-      # ---- Download and Release steps (Unchanged) ----
       - name: Download prebuilt FFmpeg for ${{ matrix.folder }}
         if: matrix.type == 'download' # This section will not run with current matrix
         run: |
           # ... (content unchanged, will not run) ...
           mkdir -p ffmpeg/${{ matrix.folder }}
           cd ffmpeg/${{ matrix.folder }}
-          if [[ "${{ matrix.os }}" == "macos-latest" ]]; then 
+          if [[ "${{ matrix.os }}" == "macos-latest" || "${{ matrix.os }}" == "macos-13" ]]; then 
             curl -L "${{ matrix.download_url }}" -o ffmpeg.zip
-            unzip -j ffmpeg.zip ffmpeg
+            unzip -j ffmpeg.zip ffmpeg # Assuming ffmpeg is directly in zip for macos prebuilts
             rm ffmpeg.zip
-          else
+          else # Assuming windows-latest
             curl -L "${{ matrix.download_url }}" -o ffmpeg.7z
-            7z x ffmpeg.7z -y
+            # Ensure 7z is available. setup-msys2 might provide it, or add '7zip' to msys2 install
+            7z x ffmpeg.7z -y 
             rm ffmpeg.7z
-            EXE_PATH=$(find . -type f -name "${{ matrix.binary_name }}" | head -n1)
-            mv "$EXE_PATH" "${{ matrix.binary_name }}"
-            chmod +x "${{ matrix.binary_name }}"
+            # The following find assumes a nested structure common in Windows FFmpeg builds
+            EXE_PATH=$(find . -path "*/bin/ffmpeg.exe" -print -quit || find . -name "ffmpeg.exe" -print -quit)
+            if [[ -n "$EXE_PATH" ]]; then
+              mv "$EXE_PATH" "ffmpeg.exe"
+              chmod +x "ffmpeg.exe"
+            else
+              echo "ffmpeg.exe not found in archive"
+              exit 1
+            fi
           fi
 
       - name: Ensure GitHub release
         id: ensure_release
-        uses: actions/github-script@v7 # Updated to v7
+        uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           result-encoding: string
@@ -311,19 +349,26 @@ jobs:
                 repo: context.repo.repo,
                 tag
               });
+              console.log(`Found existing release for tag ${tag}`);
               return rel.data.upload_url;
             } catch (e) {
-              console.warn(`Release ${tag} not found, creating it.`);
-              const rel = await github.rest.repos.createRelease({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                tag_name: tag,
-                name: `harvey-sidecars ${tag}`,
-                body: `Automated build of FFmpeg for Harvey App. Release tag: ${tag}. Commit: ${context.sha}`, // Simplified body
-                draft: false,
-                prerelease: false
-              });
-              return rel.data.upload_url;
+              if (e.status === 404) {
+                console.warn(`Release ${tag} not found, creating it.`);
+                const rel = await github.rest.repos.createRelease({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  tag_name: tag,
+                  name: `FFmpeg Sidecars ${tag}`, // Simplified name
+                  body: `Automated build of FFmpeg sidecars. Release tag: ${tag}. Commit: ${context.sha}`,
+                  draft: false,
+                  prerelease: false
+                });
+                console.log(`Created new release for tag ${tag}`);
+                return rel.data.upload_url;
+              } else {
+                console.error(`Error checking release: ${e.message}`);
+                throw e;
+              }
             }
 
       - name: Upload FFmpeg asset
