@@ -30,17 +30,17 @@ jobs:
             type: build
             install_deps: |
               brew install yasm pkg-config nasm
-            configure_opts: "--arch=arm64 --disable-gpl --disable-ffplay --disable-ffprobe --enable-protocol=file"
+            configure_opts: "--arch=arm64 --disable-gpl --disable-nonfree --disable-ffplay --disable-ffprobe --disable-doc --disable-everything --enable-demuxer=mov,matroska,avi,flac,mp3,aac --enable-decoder=aac,flac,mp3,pcm_s16le,pcm_s24le,pcm_s32le,vorbis,opus --enable-encoder=pcm_s16le --enable-muxer=wav --enable-protocol=file --disable-network --disable-bzlib --disable-iconv --disable-lzma --disable-schannel --disable-sdl2 --disable-securetransport --disable-xlib --disable-zlib"
           - os: macos-13 # For x86_64 - Changed from macos-latest
             folder: macos-x86_64
             type: build
             install_deps: |
               brew install yasm pkg-config nasm
-            # configure_opts: not applicable for Homebrew build of FFmpeg for this target
+            configure_opts: "--arch=x86_64 --disable-gpl --disable-nonfree --disable-ffplay --disable-ffprobe --disable-everything --enable-demuxer=mov,matroska,avi,flac,mp3,aac --enable-decoder=aac,flac,mp3,pcm_s16le,pcm_s24le,pcm_s32le,vorbis,opus --enable-encoder=pcm_s16le --enable-muxer=wav --enable-protocol=file --disable-network --disable-bzlib --disable-iconv --disable-lzma --disable-schannel --disable-sdl2 --disable-securetransport --disable-xlib --disable-zlib"
           - os: windows-latest
             folder: windows-x86_64
             type: build
-            configure_opts: "--disable-gpl --target-os=win64 --disable-ffplay --disable-ffprobe --enable-protocol=file --disable-asm"
+            configure_opts: "--target-os=win64 --disable-asm --disable-gpl --disable-nonfree --disable-ffplay --disable-ffprobe --disable-doc --disable-everything --enable-demuxer=mov,matroska,avi,flac,mp3,aac --enable-decoder=aac,flac,mp3,pcm_s16le,pcm_s24le,pcm_s32le,vorbis,opus --enable-encoder=pcm_s16le --enable-muxer=wav --enable-protocol=file --disable-network --disable-bzlib --disable-iconv --disable-lzma --disable-schannel --disable-sdl2 --disable-securetransport --disable-xlib --disable-zlib"
     defaults:
       run:
         shell: bash
@@ -79,7 +79,7 @@ jobs:
           fi
 
       - name: Clone FFmpeg source
-        if: matrix.type == 'build' && (matrix.folder == 'macos-arm64' || matrix.folder == 'windows-x86_64')
+        if: matrix.type == 'build' && (matrix.folder == 'macos-arm64' || matrix.folder == 'windows-x86_64' || matrix.folder == 'macos-x86_64')
         run: |
           echo "Cloning FFmpeg source branch/tag: $FFMPEG_TAG for ${{ matrix.folder }}"
           rm -rf ffmpeg-src # Clean before clone
@@ -105,6 +105,22 @@ jobs:
       # ---- Configure & build FFmpeg (macOS arm64) ----
       - name: Configure & build FFmpeg (macOS arm64)
         if: matrix.type == 'build' && matrix.folder == 'macos-arm64'
+        run: |
+          echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
+          CPU_COUNT=$(sysctl -n hw.logicalcpu)
+          echo "Using $CPU_COUNT cores for make"
+          mkdir -p ffmpeg/${{ matrix.folder }}
+          cd ffmpeg-src
+          echo "Current directory: $(pwd)"
+          echo "Running configure with opts: ${{ matrix.configure_opts }}"
+          ./configure             --prefix="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"             --disable-shared             --enable-static             --disable-doc             ${{ matrix.configure_opts }}
+          make -j${CPU_COUNT}
+          make install
+          cd ..
+
+      # ---- Configure & build FFmpeg (macOS x86_64) ----
+      - name: Configure & build FFmpeg (macOS x86_64)
+        if: matrix.type == 'build' && matrix.folder == 'macos-x86_64'
         run: |
           echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
           CPU_COUNT=$(sysctl -n hw.logicalcpu)
@@ -163,38 +179,27 @@ jobs:
           echo "Contents of ${INSTALL_DIR} after trim:"
           ls -R "${INSTALL_DIR}"
 
-      # ---- Homebrew FFmpeg for macOS x86_64 ----
-      - name: Install FFmpeg via Homebrew (macOS x86_64)
-        if: matrix.folder == 'macos-x86_64'
+      # ---- Trim Build (macOS x86_64) ----
+      - name: Trim Build (macOS x86_64)
+        if: matrix.type == 'build' && matrix.folder == 'macos-x86_64'
         run: |
-          echo "Installing FFmpeg via Homebrew for macOS x86_64..."
-          brew install ffmpeg
-          brew link --overwrite ffmpeg
-          echo "FFmpeg installed via Homebrew. Path: $(brew --prefix ffmpeg)"
-
-      - name: Copy Homebrew FFmpeg (macOS x86_64)
-        if: matrix.folder == 'macos-x86_64'
-        run: |
-          echo "Locating and copying Homebrew FFmpeg for macOS x86_64..."
-          FFMPEG_BREW_PREFIX=$(brew --prefix ffmpeg)
-          echo "FFmpeg Homebrew prefix: $FFMPEG_BREW_PREFIX"
-          SOURCE_FFMPEG_PATH="${FFMPEG_BREW_PREFIX}/bin/ffmpeg"
-
-          if [[ ! -f "$SOURCE_FFMPEG_PATH" ]]; then
-            echo "Error: ffmpeg binary not found at $SOURCE_FFMPEG_PATH"
-            echo "Listing contents of ${FFMPEG_BREW_PREFIX}/bin/:"
-            ls -l "${FFMPEG_BREW_PREFIX}/bin/"
+          echo "Trimming build for ${{ matrix.folder }} on ${{ matrix.os }}"
+          INSTALL_DIR="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
+          FINAL_EXE_NAME="ffmpeg"
+          echo "Looking for ffmpeg executable in ${INSTALL_DIR}/bin/"
+          ls -l "${INSTALL_DIR}/bin/"
+          if [[ -f "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}" ]]; then
+            mv "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}" "${INSTALL_DIR}/${FINAL_EXE_NAME}"
+            echo "Moved ${FINAL_EXE_NAME} to ${INSTALL_DIR}/"
+          else
+            echo "Error: ${FINAL_EXE_NAME} not found in ${INSTALL_DIR}/bin/"
+            find "${INSTALL_DIR}" -name ${FINAL_EXE_NAME} -print
             exit 1
           fi
-
-          TARGET_DIR="ffmpeg/macos-x86_64"
-          mkdir -p "$TARGET_DIR"
-          echo "Copying $SOURCE_FFMPEG_PATH to $TARGET_DIR/ffmpeg"
-          cp "$SOURCE_FFMPEG_PATH" "$TARGET_DIR/ffmpeg"
-
-          echo "Verifying copied FFmpeg:"
-          ls -l "$TARGET_DIR/ffmpeg"
-          "$TARGET_DIR/ffmpeg" -version
+          echo "Removing bin, include, lib, share directories from ${INSTALL_DIR}"
+          rm -rf "${INSTALL_DIR}/bin" "${INSTALL_DIR}/include" "${INSTALL_DIR}/lib" "${INSTALL_DIR}/share" "${INSTALL_DIR}/doc"
+          echo "Contents of ${INSTALL_DIR} after trim:"
+          ls -R "${INSTALL_DIR}"
 
       - name: Download prebuilt FFmpeg for ${{ matrix.folder }}
         if: matrix.type == 'download'
