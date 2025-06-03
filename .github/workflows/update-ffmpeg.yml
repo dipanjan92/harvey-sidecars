@@ -30,17 +30,17 @@ jobs:
             type: build
             install_deps: |
               brew install yasm pkg-config nasm
-            configure_opts: "--arch=arm64 --disable-programs=ffplay,ffprobe --enable-protocol=file"
+            configure_opts: "--arch=arm64 --disable-ffplay --disable-ffprobe --enable-protocol=file" # Corrected
           - os: macos-latest
             folder: macos-x86_64
             type: build
             install_deps: |
               brew install yasm pkg-config nasm
-            configure_opts: "--arch=x86_64 --disable-gpl --disable-programs=ffplay,ffprobe --enable-protocol=file"
+            configure_opts: "--arch=x86_64 --disable-gpl --disable-ffplay --disable-ffprobe --enable-protocol=file" # Corrected
           - os: windows-latest
             folder: windows-x86_64
             type: build
-            configure_opts: "--disable-gpl --target-os=win64 --disable-programs=ffplay,ffprobe --enable-protocol=file"
+            configure_opts: "--disable-gpl --target-os=win64 --disable-ffplay --disable-ffprobe --enable-protocol=file" # Corrected
     defaults:
       run:
         shell: bash # Default shell for most steps
@@ -82,7 +82,7 @@ jobs:
         shell: msys2 {0}
         run: |
           echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
-          CPU_COUNT=$(nproc)
+          CPU_COUNT=$(nproc) # nproc is appropriate for MSYS2 bash
           echo "Using $CPU_COUNT cores for make"
           mkdir -p ffmpeg/${{ matrix.folder }}
           cd ffmpeg-src
@@ -99,7 +99,7 @@ jobs:
         # shell: bash # Implicitly uses default bash from defaults.run.shell
         run: |
           echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
-          CPU_COUNT=$(nproc)
+          CPU_COUNT=$(sysctl -n hw.logicalcpu) # Corrected for macOS
           echo "Using $CPU_COUNT cores for make"
           mkdir -p ffmpeg/${{ matrix.folder }}
           cd ffmpeg-src
