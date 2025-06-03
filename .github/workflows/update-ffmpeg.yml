@@ -12,7 +12,7 @@ on:
   workflow_call:
 
 env:
-  FFMPEG_TAG: "release/4.4"
+  FFMPEG_TAG: "release/4.4" # Consider using a more recent release if compatible, e.g., "release/5.1" or "release/6.0"
 
 jobs:
   ffmpeg:
@@ -31,17 +31,22 @@ jobs:
             install_deps: |
               brew install yasm pkg-config nasm
             cpu_count: "$(sysctl -n hw.logicalcpu)"
-            configure_opts: "--arch=arm64"
+            configure_opts: "--arch=arm64 --disable-programs=ffplay,ffprobe --enable-protocol=file" # Added --disable-programs and --enable-protocol=file for minimal build
           - os: macos-latest
             folder: macos-x86_64
-            type: download
-            download_url: "https://evermeet.cx/ffmpeg/getrelease/zip"
-            binary_name: "ffmpeg"
+            type: build
+            install_deps: |
+              brew install yasm pkg-config nasm
+            cpu_count: "$(sysctl -n hw.logicalcpu)"
+            configure_opts: "--arch=x86_64 --disable-gpl --disable-programs=ffplay,ffprobe --enable-protocol=file" # Added --disable-gpl and minimal build flags
           - os: windows-latest
             folder: windows-x86_64
-            type: download
-            download_url: "https://www.gyan.dev/ffmpeg/builds/ffmpeg-git-essentials.7z"
-            binary_name: "ffmpeg.exe"
+            type: build
+            install_deps: |
+              echo "Using MSYS2 pacman to install yasm, nasm, make, and mingw-w64-x86_64-pkg-config"
+              pacman -Syu --noconfirm yasm nasm make mingw-w64-x86_64-pkg-config
+            cpu_count: "nproc" # nproc should be available in MSYS2 bash
+            configure_opts: "--disable-gpl --target-os=win64 --disable-programs=ffplay,ffprobe --enable-protocol=file" # Added --disable-gpl and minimal build flags
     defaults:
       run:
         shell: bash
@@ -61,33 +66,53 @@ jobs:
       - name: Clone FFmpeg source
         if: matrix.type == 'build'
         run: |
+          echo "Cloning FFmpeg source branch/tag: $FFMPEG_TAG"
           git clone --depth 1 --branch "$FFMPEG_TAG" https://git.ffmpeg.org/ffmpeg.git ffmpeg-src
 
       - name: Configure & build FFmpeg
         if: matrix.type == 'build'
         run: |
+          echo "Configuring and building FFmpeg for ${{ matrix.folder }}"
           mkdir -p ffmpeg/${{ matrix.folder }}
           cd ffmpeg-src
-          ./configure \
-            --prefix="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}" \
-            --disable-shared \
-            --enable-static \
-            --disable-doc \
-            ${{ matrix.configure_opts }}
+          echo "Current directory: $(pwd)"
+          echo "Running configure with opts: ${{ matrix.configure_opts }}"
+          ./configure             --prefix="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"             --disable-shared             --enable-static             --disable-doc             ${{ matrix.configure_opts }}
           make -j${{ matrix.cpu_count }}
           make install
+          cd .. # Return to workspace root for consistency
 
-      - name: Trim macOS ARM64 build
-        if: matrix.folder == 'macos-arm64'
+      - name: Trim Build
+        if: matrix.type == 'build'
         run: |
-          rm -rf ffmpeg/${{ matrix.folder }}/include \
-                 ffmpeg/${{ matrix.folder }}/lib \
-                 ffmpeg/${{ matrix.folder }}/share
-          rm -f ffmpeg/${{ matrix.folder }}/bin/ffprobe
-          mv ffmpeg/${{ matrix.folder }}/bin/ffmpeg ffmpeg/${{ matrix.folder }}/ffmpeg
-          rm -rf ffmpeg/${{ matrix.folder }}/bin
+          echo "Trimming build for ${{ matrix.folder }} on ${{ matrix.os }}"
+          INSTALL_DIR="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}" # Use absolute path for safety
+          FINAL_EXE_NAME="ffmpeg"
 
-      - name: Download prebuilt FFmpeg for ${{ matrix.folder }}
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            FINAL_EXE_NAME="ffmpeg.exe"
+          fi
+
+          echo "Looking for ffmpeg executable in ${INSTALL_DIR}/bin/"
+          ls -l "${INSTALL_DIR}/bin/"
+
+          # Move the main ffmpeg executable to the root of INSTALL_DIR
+          if [[ -f "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}" ]]; then
+            mv "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}" "${INSTALL_DIR}/${FINAL_EXE_NAME}"
+            echo "Moved ${FINAL_EXE_NAME} to ${INSTALL_DIR}/"
+          else
+            echo "Error: ${FINAL_EXE_NAME} not found in ${INSTALL_DIR}/bin/"
+            exit 1
+          fi
+
+          # Remove unnecessary directories from the install prefix
+          echo "Removing bin, include, lib, share directories from ${INSTALL_DIR}"
+          rm -rf "${INSTALL_DIR}/bin"                  "${INSTALL_DIR}/include"                  "${INSTALL_DIR}/lib"                  "${INSTALL_DIR}/share"                  "${INSTALL_DIR}/doc" # doc might not exist due to --disable-doc
+
+          echo "Contents of ${INSTALL_DIR} after trim:"
+          ls -R "${INSTALL_DIR}"
+
+      - name: Download prebuilt FFmpeg for ${{ matrix.folder }} # This step will be skipped as all types are 'build'
         if: matrix.type == 'download'
         run: |
           mkdir -p ffmpeg/${{ matrix.folder }}
@@ -96,18 +121,15 @@ jobs:
             curl -L "${{ matrix.download_url }}" -o ffmpeg.zip
             unzip -j ffmpeg.zip ffmpeg
             rm ffmpeg.zip
-          else
+          else # Assumed windows
             curl -L "${{ matrix.download_url }}" -o ffmpeg.7z
             7z x ffmpeg.7z -y
             rm ffmpeg.7z
-            # Find the extracted exe anywhere in subfolders
             EXE_PATH=$(find . -type f -name "${{ matrix.binary_name }}" | head -n1)
-            # Move it to current directory
             mv "$EXE_PATH" "${{ matrix.binary_name }}"
             chmod +x "${{ matrix.binary_name }}"
           fi
 
-      # Step: Ensure GitHub release exists (create if missing)
       - name: Ensure GitHub release
         id: ensure_release
         uses: actions/github-script@v6
@@ -115,8 +137,6 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           result-encoding: string
           script: |
-            // The `tag` variable is set from the RELEASE_TAG environment variable,
-            // which comes from the `release_tag` input on the `workflow_dispatch` trigger.
             const tag = process.env.RELEASE_TAG;
             try {
               const rel = await github.rest.repos.getReleaseByTag({
@@ -126,20 +146,19 @@ jobs:
               });
               return rel.data.upload_url;
             } catch (e) {
+              console.warn(`Release ${tag} not found, creating it.`);
               const rel = await github.rest.repos.createRelease({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 tag_name: tag,
-                commitish: context.sha,
-                name: `harvey-sidecars ${tag}`,
-                body: `Automated build of FFmpeg for ${process.env.MATRIX_FOLDER}`,
+                name: `harvey-sidecars ${tag}`, // Use tag_name for release name for clarity
+                body: `Automated build of FFmpeg, Whisper.cpp, Diarize-CLI for Harvey App. Release tag: ${tag}. Commit: ${context.sha}`,
                 draft: false,
-                prerelease: false
+                prerelease: false // Change to true if these are not production-ready
               });
               return rel.data.upload_url;
             }
 
-      # Step: Upload FFmpeg binary to the release
       - name: Upload FFmpeg asset
         uses: actions/upload-release-asset@v1
         env:
