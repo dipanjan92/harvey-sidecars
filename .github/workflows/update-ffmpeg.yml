@@ -12,7 +12,7 @@ on:
   workflow_call:
 
 env:
-  FFMPEG_TAG: "n6.0" # Updated from "release/4.4"
+  FFMPEG_TAG: "n6.0"
 
 jobs:
   ffmpeg:
@@ -36,14 +36,14 @@ jobs:
             type: build
             install_deps: |
               brew install yasm pkg-config nasm
-            configure_opts: "--arch=x86_64 --disable-gpl --disable-ffplay --disable-ffprobe --enable-protocol=file"
+            configure_opts: "--arch=x86_64 --disable-gpl --disable-ffplay --disable-ffprobe --enable-protocol=file --disable-x86asm" # Added --disable-x86asm
           - os: windows-latest
             folder: windows-x86_64
             type: build
             configure_opts: "--disable-gpl --target-os=win64 --disable-ffplay --disable-ffprobe --enable-protocol=file"
     defaults:
       run:
-        shell: bash # Default shell for most steps
+        shell: bash
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
