@@ -12,7 +12,7 @@ on:
   workflow_call:
 
 env:
-  FFMPEG_TAG: "release/4.4" # Consider using a more recent release if compatible
+  FFMPEG_TAG: "n6.0" # Updated from "release/4.4"
 
 jobs:
   ffmpeg:
@@ -30,17 +30,17 @@ jobs:
             type: build
             install_deps: |
               brew install yasm pkg-config nasm
-            configure_opts: "--arch=arm64 --disable-ffplay --disable-ffprobe --enable-protocol=file" # Corrected
+            configure_opts: "--arch=arm64 --disable-ffplay --disable-ffprobe --enable-protocol=file"
           - os: macos-latest
             folder: macos-x86_64
             type: build
             install_deps: |
               brew install yasm pkg-config nasm
-            configure_opts: "--arch=x86_64 --disable-gpl --disable-ffplay --disable-ffprobe --enable-protocol=file" # Corrected
+            configure_opts: "--arch=x86_64 --disable-gpl --disable-ffplay --disable-ffprobe --enable-protocol=file"
           - os: windows-latest
             folder: windows-x86_64
             type: build
-            configure_opts: "--disable-gpl --target-os=win64 --disable-ffplay --disable-ffprobe --enable-protocol=file" # Corrected
+            configure_opts: "--disable-gpl --target-os=win64 --disable-ffplay --disable-ffprobe --enable-protocol=file"
     defaults:
       run:
         shell: bash # Default shell for most steps
@@ -82,7 +82,7 @@ jobs:
         shell: msys2 {0}
         run: |
           echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
-          CPU_COUNT=$(nproc) # nproc is appropriate for MSYS2 bash
+          CPU_COUNT=$(nproc)
           echo "Using $CPU_COUNT cores for make"
           mkdir -p ffmpeg/${{ matrix.folder }}
           cd ffmpeg-src
@@ -96,10 +96,9 @@ jobs:
       # ---- Configure & build FFmpeg (macOS) ----
       - name: Configure & build FFmpeg (macOS)
         if: matrix.type == 'build' && matrix.os == 'macos-latest'
-        # shell: bash # Implicitly uses default bash from defaults.run.shell
         run: |
           echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
-          CPU_COUNT=$(sysctl -n hw.logicalcpu) # Corrected for macOS
+          CPU_COUNT=$(sysctl -n hw.logicalcpu)
           echo "Using $CPU_COUNT cores for make"
           mkdir -p ffmpeg/${{ matrix.folder }}
           cd ffmpeg-src
@@ -139,7 +138,6 @@ jobs:
       # ---- Trim Build (macOS) ----
       - name: Trim Build (macOS)
         if: matrix.type == 'build' && matrix.os == 'macos-latest'
-        # shell: bash # Implicitly uses default bash
         run: |
           echo "Trimming build for ${{ matrix.folder }} on ${{ matrix.os }}"
           INSTALL_DIR="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
@@ -162,7 +160,6 @@ jobs:
           echo "Contents of ${INSTALL_DIR} after trim:"
           ls -R "${INSTALL_DIR}"
 
-      # This step will be skipped as all types are 'build'
       - name: Download prebuilt FFmpeg for ${{ matrix.folder }}
         if: matrix.type == 'download'
         run: |
@@ -173,7 +170,7 @@ jobs:
             curl -L "${{ matrix.download_url }}" -o ffmpeg.zip
             unzip -j ffmpeg.zip ffmpeg
             rm ffmpeg.zip
-          else # Assumed windows
+          else
             curl -L "${{ matrix.download_url }}" -o ffmpeg.7z
             7z x ffmpeg.7z -y
             rm ffmpeg.7z
@@ -184,7 +181,6 @@ jobs:
 
       - name: Ensure GitHub release
         id: ensure_release
-        # ... (content unchanged) ...
         uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -214,7 +210,6 @@ jobs:
 
       - name: Upload FFmpeg asset
         uses: actions/upload-release-asset@v1
-        # ... (content unchanged) ...
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
