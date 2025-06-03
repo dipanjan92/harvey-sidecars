@@ -30,7 +30,7 @@ jobs:
             type: build
             install_deps: |
               brew install yasm pkg-config nasm
-            configure_opts: "--arch=arm64 --disable-gpl --disable-ffplay --disable-ffprobe --enable-protocol=file"
+            configure_opts: "--arch=arm64 --disable-gpl --disable-nonfree --disable-ffplay --disable-ffprobe --disable-doc --disable-everything --enable-demuxer=mov,matroska,avi,flac,mp3,aac --enable-decoder=aac,flac,mp3,pcm_s16le,pcm_s24le,pcm_s32le,vorbis,opus --enable-encoder=pcm_s16le --enable-muxer=wav --enable-protocol=file --disable-network --disable-bzlib --disable-iconv --disable-lzma --disable-schannel --disable-sdl2 --disable-securetransport --disable-xlib --disable-zlib"
           - os: macos-13 # For x86_64 - Changed from macos-latest
             folder: macos-x86_64
             type: build
@@ -40,7 +40,7 @@ jobs:
           - os: windows-latest
             folder: windows-x86_64
             type: build
-            configure_opts: "--disable-gpl --target-os=win64 --disable-ffplay --disable-ffprobe --enable-protocol=file --disable-asm"
+            configure_opts: "--target-os=win64 --disable-asm --disable-gpl --disable-nonfree --disable-ffplay --disable-ffprobe --disable-doc --disable-everything --enable-demuxer=mov,matroska,avi,flac,mp3,aac --enable-decoder=aac,flac,mp3,pcm_s16le,pcm_s24le,pcm_s32le,vorbis,opus --enable-encoder=pcm_s16le --enable-muxer=wav --enable-protocol=file --disable-network --disable-bzlib --disable-iconv --disable-lzma --disable-schannel --disable-sdl2 --disable-securetransport --disable-xlib --disable-zlib"
     defaults:
       run:
         shell: bash
