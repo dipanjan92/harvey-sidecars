@@ -30,19 +30,16 @@ jobs:
             type: build
             install_deps: |
               brew install yasm pkg-config nasm
-            # cpu_count is now set in the build step
             configure_opts: "--arch=arm64 --disable-programs=ffplay,ffprobe --enable-protocol=file"
           - os: macos-latest
             folder: macos-x86_64
             type: build
             install_deps: |
               brew install yasm pkg-config nasm
-            # cpu_count is now set in the build step
             configure_opts: "--arch=x86_64 --disable-gpl --disable-programs=ffplay,ffprobe --enable-protocol=file"
           - os: windows-latest
             folder: windows-x86_64
             type: build
-            # install_deps and cpu_count are handled by msys2 setup and in build step
             configure_opts: "--disable-gpl --target-os=win64 --disable-programs=ffplay,ffprobe --enable-protocol=file"
     defaults:
       run:
@@ -79,52 +76,89 @@ jobs:
           echo "Cloning FFmpeg source branch/tag: $FFMPEG_TAG"
           git clone --depth 1 --branch "$FFMPEG_TAG" https://git.ffmpeg.org/ffmpeg.git ffmpeg-src
 
-      - name: Configure & build FFmpeg
-        if: matrix.type == 'build'
-        shell: ${{ matrix.os == 'windows-latest' && 'msys2 {0}' || 'bash' }} # Conditional shell
+      # ---- Configure & build FFmpeg (Windows) ----
+      - name: Configure & build FFmpeg (Windows)
+        if: matrix.type == 'build' && matrix.os == 'windows-latest'
+        shell: msys2 {0}
         run: |
           echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
           CPU_COUNT=$(nproc)
           echo "Using $CPU_COUNT cores for make"
-
-          mkdir -p ffmpeg/${{ matrix.folder }} # Ensure target directory for prefix exists
+          mkdir -p ffmpeg/${{ matrix.folder }}
           cd ffmpeg-src
-
           echo "Current directory: $(pwd)"
           echo "Running configure with opts: ${{ matrix.configure_opts }}"
-
           ./configure             --prefix="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"             --disable-shared             --enable-static             --disable-doc             ${{ matrix.configure_opts }}
-
           make -j${CPU_COUNT}
           make install
-          cd .. # Return to workspace root for consistency
+          cd ..
 
-      - name: Trim Build
-        if: matrix.type == 'build'
-        shell: ${{ matrix.os == 'windows-latest' && 'msys2 {0}' || 'bash' }} # Conditional shell
+      # ---- Configure & build FFmpeg (macOS) ----
+      - name: Configure & build FFmpeg (macOS)
+        if: matrix.type == 'build' && matrix.os == 'macos-latest'
+        # shell: bash # Implicitly uses default bash from defaults.run.shell
+        run: |
+          echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
+          CPU_COUNT=$(nproc)
+          echo "Using $CPU_COUNT cores for make"
+          mkdir -p ffmpeg/${{ matrix.folder }}
+          cd ffmpeg-src
+          echo "Current directory: $(pwd)"
+          echo "Running configure with opts: ${{ matrix.configure_opts }}"
+          ./configure             --prefix="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"             --disable-shared             --enable-static             --disable-doc             ${{ matrix.configure_opts }}
+          make -j${CPU_COUNT}
+          make install
+          cd ..
+
+      # ---- Trim Build (Windows) ----
+      - name: Trim Build (Windows)
+        if: matrix.type == 'build' && matrix.os == 'windows-latest'
+        shell: msys2 {0}
         run: |
           echo "Trimming build for ${{ matrix.folder }} on ${{ matrix.os }}"
           INSTALL_DIR="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
-          FINAL_EXE_NAME="ffmpeg"
-
-          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            FINAL_EXE_NAME="ffmpeg.exe"
-          fi
+          FINAL_EXE_NAME="ffmpeg.exe"
 
           echo "Looking for ffmpeg executable in ${INSTALL_DIR}/bin/"
           ls -l "${INSTALL_DIR}/bin/"
-
           if [[ -f "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}" ]]; then
             mv "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}" "${INSTALL_DIR}/${FINAL_EXE_NAME}"
             echo "Moved ${FINAL_EXE_NAME} to ${INSTALL_DIR}/"
           else
             echo "Error: ${FINAL_EXE_NAME} not found in ${INSTALL_DIR}/bin/"
+            echo "Listing contents of ${INSTALL_DIR}/bin and its subdirectories..."
+            find "${INSTALL_DIR}/bin" -type f \( -name ffmpeg -o -name ffmpeg.exe \) -print
             exit 1
           fi
 
           echo "Removing bin, include, lib, share directories from ${INSTALL_DIR}"
           rm -rf "${INSTALL_DIR}/bin"                  "${INSTALL_DIR}/include"                  "${INSTALL_DIR}/lib"                  "${INSTALL_DIR}/share"                  "${INSTALL_DIR}/doc"
+          echo "Contents of ${INSTALL_DIR} after trim:"
+          ls -R "${INSTALL_DIR}"
 
+      # ---- Trim Build (macOS) ----
+      - name: Trim Build (macOS)
+        if: matrix.type == 'build' && matrix.os == 'macos-latest'
+        # shell: bash # Implicitly uses default bash
+        run: |
+          echo "Trimming build for ${{ matrix.folder }} on ${{ matrix.os }}"
+          INSTALL_DIR="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
+          FINAL_EXE_NAME="ffmpeg"
+
+          echo "Looking for ffmpeg executable in ${INSTALL_DIR}/bin/"
+          ls -l "${INSTALL_DIR}/bin/"
+          if [[ -f "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}" ]]; then
+            mv "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}" "${INSTALL_DIR}/${FINAL_EXE_NAME}"
+            echo "Moved ${FINAL_EXE_NAME} to ${INSTALL_DIR}/"
+          else
+            echo "Error: ${FINAL_EXE_NAME} not found in ${INSTALL_DIR}/bin/"
+            echo "Listing contents of ${INSTALL_DIR}/bin and its subdirectories..."
+            find "${INSTALL_DIR}/bin" -type f \( -name ffmpeg -o -name ffmpeg.exe \) -print
+            exit 1
+          fi
+
+          echo "Removing bin, include, lib, share directories from ${INSTALL_DIR}"
+          rm -rf "${INSTALL_DIR}/bin"                  "${INSTALL_DIR}/include"                  "${INSTALL_DIR}/lib"                  "${INSTALL_DIR}/share"                  "${INSTALL_DIR}/doc"
           echo "Contents of ${INSTALL_DIR} after trim:"
           ls -R "${INSTALL_DIR}"
 
