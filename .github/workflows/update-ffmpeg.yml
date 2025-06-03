@@ -25,22 +25,22 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-latest # This will be an arm64 runner if available, or x86_64. label implies intent for arm64.
+          - os: macos-latest
             folder: macos-arm64
             type: build
             install_deps: |
               brew install yasm pkg-config nasm
-            configure_opts: "--arch=arm64 --disable-ffplay --disable-ffprobe --enable-protocol=file"
-          - os: macos-latest # This will be an x86_64 runner
+            configure_opts: "--arch=arm64 --disable-gpl --disable-ffplay --disable-ffprobe --enable-protocol=file" # Added --disable-gpl
+          - os: macos-latest
             folder: macos-x86_64
-            type: build # Will be handled by Homebrew steps
-            install_deps: | # yasm/nasm/pkg-config might be used by Homebrew's FFmpeg dependencies
+            type: build
+            install_deps: |
               brew install yasm pkg-config nasm
             # configure_opts: not applicable for Homebrew build of FFmpeg for this target
           - os: windows-latest
             folder: windows-x86_64
             type: build
-            configure_opts: "--disable-gpl --target-os=win64 --disable-ffplay --disable-ffprobe --enable-protocol=file"
+            configure_opts: "--disable-gpl --target-os=win64 --disable-ffplay --disable-ffprobe --enable-protocol=file --disable-asm" # Added --disable-asm
     defaults:
       run:
         shell: bash
@@ -71,7 +71,6 @@ jobs:
           ${{ matrix.install_deps }}
 
       - name: Clone FFmpeg source
-        # Only clone if we are building from source (arm64 macOS or Windows)
         if: matrix.type == 'build' && (matrix.folder == 'macos-arm64' || matrix.folder == 'windows-x86_64')
         run: |
           echo "Cloning FFmpeg source branch/tag: $FFMPEG_TAG for ${{ matrix.folder }}"
@@ -79,7 +78,7 @@ jobs:
 
       # ---- Configure & build FFmpeg (Windows) ----
       - name: Configure & build FFmpeg (Windows)
-        if: matrix.type == 'build' && matrix.folder == 'windows-x86_64' # Specific to Windows source build
+        if: matrix.type == 'build' && matrix.folder == 'windows-x86_64'
         shell: msys2 {0}
         run: |
           echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
@@ -96,7 +95,7 @@ jobs:
 
       # ---- Configure & build FFmpeg (macOS arm64) ----
       - name: Configure & build FFmpeg (macOS arm64)
-        if: matrix.type == 'build' && matrix.folder == 'macos-arm64' # Specific to arm64 source build
+        if: matrix.type == 'build' && matrix.folder == 'macos-arm64'
         run: |
           echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
           CPU_COUNT=$(sysctl -n hw.logicalcpu)
@@ -112,10 +111,9 @@ jobs:
 
       # ---- Trim Build (Windows) ----
       - name: Trim Build (Windows)
-        if: matrix.type == 'build' && matrix.folder == 'windows-x86_64' # Specific to Windows source build
+        if: matrix.type == 'build' && matrix.folder == 'windows-x86_64'
         shell: msys2 {0}
         run: |
-          # ... (trim script as before)
           echo "Trimming build for ${{ matrix.folder }} on ${{ matrix.os }}"
           INSTALL_DIR="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
           FINAL_EXE_NAME="ffmpeg.exe"
@@ -134,12 +132,10 @@ jobs:
           echo "Contents of ${INSTALL_DIR} after trim:"
           ls -R "${INSTALL_DIR}"
 
-
       # ---- Trim Build (macOS arm64) ----
       - name: Trim Build (macOS arm64)
-        if: matrix.type == 'build' && matrix.folder == 'macos-arm64' # Specific to arm64 source build
+        if: matrix.type == 'build' && matrix.folder == 'macos-arm64'
         run: |
-          # ... (trim script as before)
           echo "Trimming build for ${{ matrix.folder }} on ${{ matrix.os }}"
           INSTALL_DIR="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
           FINAL_EXE_NAME="ffmpeg"
@@ -164,7 +160,7 @@ jobs:
         run: |
           echo "Installing FFmpeg via Homebrew for macOS x86_64..."
           brew install ffmpeg
-          brew link --overwrite ffmpeg # Ensure it's linked if it was already installed
+          brew link --overwrite ffmpeg
           echo "FFmpeg installed via Homebrew. Path: $(brew --prefix ffmpeg)"
 
       - name: Copy Homebrew FFmpeg (macOS x86_64)
@@ -191,9 +187,8 @@ jobs:
           ls -l "$TARGET_DIR/ffmpeg"
           "$TARGET_DIR/ffmpeg" -version
 
-      # This step will be skipped as all types are 'build' and handled above or by homebrew
       - name: Download prebuilt FFmpeg for ${{ matrix.folder }}
-        if: matrix.type == 'download' # This condition will no longer be met
+        if: matrix.type == 'download'
         run: |
           # ... (content unchanged, will not run) ...
           mkdir -p ffmpeg/${{ matrix.folder }}
@@ -213,7 +208,6 @@ jobs:
 
       - name: Ensure GitHub release
         id: ensure_release
-        # ... (content unchanged) ...
         uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -243,7 +237,6 @@ jobs:
 
       - name: Upload FFmpeg asset
         uses: actions/upload-release-asset@v1
-        # ... (content unchanged) ...
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
