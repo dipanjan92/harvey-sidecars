@@ -75,8 +75,6 @@ jobs:
               --enable-zlib
               --enable-iconv
               # --disable-everything and specific enables removed
-              # Consider --enable-mediafoundation for H.264 on Windows if internal mpeg4 isn't sufficient and no other LGPL H.264 software encoder is built by default
-              # For now, keeping it simple to avoid potential linking issues without specific setup.
 
     defaults:
       run:
@@ -101,9 +99,8 @@ jobs:
             mingw-w64-x86_64-yasm
             mingw-w64-x86_64-nasm
             mingw-w64-x86_64-pkg-config
-            mingw-w64-x86_64-zlib 
+            mingw-w64-x86_64-zlib
             mingw-w64-x86_64-libiconv
-            # Removed mingw-w64-x86_64-openh264 and mingw-w64-x86_64-libvorbis
 
       - name: Install build prerequisites (macOS)
         if: (matrix.os == 'macos-latest' || matrix.os == 'macos-13') && matrix.type == 'build'
