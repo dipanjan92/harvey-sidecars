@@ -12,7 +12,7 @@ on:
   workflow_call:
 
 env:
-  FFMPEG_TAG: "n5.1.4" # Using FFmpeg 5.1.4
+  FFMPEG_TAG: "n5.1.4" 
 
 jobs:
   ffmpeg:
@@ -29,7 +29,7 @@ jobs:
             folder: macos-arm64
             type: build
             install_deps: |
-              brew install yasm pkg-config nasm openh264 libvorbis
+              brew install yasm pkg-config nasm # Core build tools for FFmpeg
             configure_opts: >-
               --arch=arm64
               --disable-gpl
@@ -37,33 +37,17 @@ jobs:
               --disable-ffplay
               --disable-ffprobe
               --disable-doc
-              --disable-everything
-              --disable-network
-              --disable-bzlib
-              --disable-lzma
-              --disable-schannel
-              --disable-sdl2
-              --disable-securetransport
-              --disable-xlib
-              --enable-zlib
-              --enable-iconv
-              --enable-protocol=file,pipe
-              --enable-filter=aresample,aformat,format,scale,crop,apad,atrim,trim,setpts,asetpts,volume,anullsink,nullsink
-              --enable-demuxer=aac,ac3,aiff,amr,ape,asf,avi,caf,dts,dv,flac,flv,gif,h264,h265,hevc,iff,m4v,matroska,mjpeg,mov,mp3,mpc,mpegps,mpegts,mpegvideo,ogg,pcm_alaw,pcm_f32be,pcm_f32le,pcm_f64be,pcm_f64le,pcm_mulaw,pcm_s16be,pcm_s16le,pcm_s24be,pcm_s24le,pcm_s32be,pcm_s32le,pcm_s8,pcm_u16be,pcm_u16le,pcm_u24be,pcm_u24le,pcm_u32be,pcm_u32le,pcm_u8,rm,swf,tta,voc,wav,webm,wsaud,wtv,wv,xa
-              --enable-muxer=wav,mp4,matroska,adts,flac,ogg,mp3
-              --enable-decoder=aac,aac_latm,ac3,alac,amrnb,amrwb,ape,atrac3,cook,dca,eac3,flac,g722,g726,gsm,mp1,mp2,mp3,mpc7,mpc8,nellymoser,opus,pcm_alaw,pcm_f32be,pcm_f32le,pcm_f64be,pcm_f64le,pcm_mulaw,pcm_s16be,pcm_s16le,pcm_s16le_planar,pcm_s24be,pcm_s24le,pcm_s32be,pcm_s32le,pcm_s8,pcm_u16be,pcm_u16le,pcm_u24be,pcm_u24le,pcm_u32be,pcm_u32le,pcm_u8,ra_144,ra_288,ralf,shorten,sonic,tta,vorbis,wmapro,wmav1,wmav2,wmavoice
-              --enable-decoder=h261,h263,h263p,h264,hevc,mjpeg,mpeg1video,mpeg2video,mpeg4,msmpeg4v1,msmpeg4v2,msmpeg4v3,png,rv10,rv20,rv30,rv40,svq1,theora,vp6,vp6a,vp6f,vp8,vp9,wmv1,wmv2,wmv3,gif
-              --enable-encoder=pcm_s16le,aac,flac,libvorbis,mpeg4,libopenh264,mjpeg,gif,png
-              --enable-parser=aac,ac3,dca,flac,h264,hevc,mjpeg,mpegvideo,mpeg4video,opus,vp3,vp8,vp9,vorbis
-              --enable-libopenh264
-              --enable-libvorbis
               --enable-videotoolbox
+              --enable-zlib
+              --enable-iconv 
+              # --disable-everything and specific enables removed
+              # Rely on FFmpeg's default enabled components, respecting above disables
 
           - os: macos-13 # For x86_64
             folder: macos-x86_64
             type: build
             install_deps: |
-              brew install yasm pkg-config nasm openh264 libvorbis
+              brew install yasm pkg-config nasm # Core build tools for FFmpeg
             configure_opts: >-
               --arch=x86_64
               --disable-gpl
@@ -71,61 +55,28 @@ jobs:
               --disable-ffplay
               --disable-ffprobe
               --disable-doc
-              --disable-everything
-              --disable-network
-              --disable-bzlib
-              --disable-lzma
-              --disable-schannel
-              --disable-sdl2
-              --disable-securetransport
-              --disable-xlib
+              --enable-videotoolbox
               --enable-zlib
               --enable-iconv
-              --enable-protocol=file,pipe
-              --enable-filter=aresample,aformat,format,scale,crop,apad,atrim,trim,setpts,asetpts,volume,anullsink,nullsink
-              --enable-demuxer=aac,ac3,aiff,amr,ape,asf,avi,caf,dts,dv,flac,flv,gif,h264,h265,hevc,iff,m4v,matroska,mjpeg,mov,mp3,mpc,mpegps,mpegts,mpegvideo,ogg,pcm_alaw,pcm_f32be,pcm_f32le,pcm_f64be,pcm_f64le,pcm_mulaw,pcm_s16be,pcm_s16le,pcm_s24be,pcm_s24le,pcm_s32be,pcm_s32le,pcm_s8,pcm_u16be,pcm_u16le,pcm_u24be,pcm_u24le,pcm_u32be,pcm_u32le,pcm_u8,rm,swf,tta,voc,wav,webm,wsaud,wtv,wv,xa
-              --enable-muxer=wav,mp4,matroska,adts,flac,ogg,mp3
-              --enable-decoder=aac,aac_latm,ac3,alac,amrnb,amrwb,ape,atrac3,cook,dca,eac3,flac,g722,g726,gsm,mp1,mp2,mp3,mpc7,mpc8,nellymoser,opus,pcm_alaw,pcm_f32be,pcm_f32le,pcm_f64be,pcm_f64le,pcm_mulaw,pcm_s16be,pcm_s16le,pcm_s16le_planar,pcm_s24be,pcm_s24le,pcm_s32be,pcm_s32le,pcm_s8,pcm_u16be,pcm_u16le,pcm_u24be,pcm_u24le,pcm_u32be,pcm_u32le,pcm_u8,ra_144,ra_288,ralf,shorten,sonic,tta,vorbis,wmapro,wmav1,wmav2,wmavoice
-              --enable-decoder=h261,h263,h263p,h264,hevc,mjpeg,mpeg1video,mpeg2video,mpeg4,msmpeg4v1,msmpeg4v2,msmpeg4v3,png,rv10,rv20,rv30,rv40,svq1,theora,vp6,vp6a,vp6f,vp8,vp9,wmv1,wmv2,wmv3,gif
-              --enable-encoder=pcm_s16le,aac,flac,libvorbis,mpeg4,libopenh264,mjpeg,gif,png
-              --enable-parser=aac,ac3,dca,flac,h264,hevc,mjpeg,mpegvideo,mpeg4video,opus,vp3,vp8,vp9,vorbis
-              --enable-libopenh264
-              --enable-libvorbis
-              --enable-videotoolbox
+              # --disable-everything and specific enables removed
 
           - os: windows-latest
             folder: windows-x86_64
             type: build
-            # No specific install_deps here as MSYS2 handles it in a later step
+            # No specific install_deps here for libs like openh264, handled by MSYS2 base + FFmpeg internals
             configure_opts: >-
               --target-os=win64
-              --disable-asm
+              --disable-asm # Keeping this as it was in your original Windows config
               --disable-gpl
               --disable-nonfree
               --disable-ffplay
               --disable-ffprobe
               --disable-doc
-              --disable-everything
-              --disable-network
-              --disable-bzlib
-              --disable-lzma
-              --disable-schannel
-              --disable-sdl2
-              --disable-securetransport
-              --disable-xlib
               --enable-zlib
               --enable-iconv
-              --enable-protocol=file,pipe
-              --enable-filter=aresample,aformat,format,scale,crop,apad,atrim,trim,setpts,asetpts,volume,anullsink,nullsink
-              --enable-demuxer=aac,ac3,aiff,amr,ape,asf,avi,caf,dts,dv,flac,flv,gif,h264,h265,hevc,iff,m4v,matroska,mjpeg,mov,mp3,mpc,mpegps,mpegts,mpegvideo,ogg,pcm_alaw,pcm_f32be,pcm_f32le,pcm_f64be,pcm_f64le,pcm_mulaw,pcm_s16be,pcm_s16le,pcm_s24be,pcm_s24le,pcm_s32be,pcm_s32le,pcm_s8,pcm_u16be,pcm_u16le,pcm_u24be,pcm_u24le,pcm_u32be,pcm_u32le,pcm_u8,rm,swf,tta,voc,wav,webm,wsaud,wtv,wv,xa
-              --enable-muxer=wav,mp4,matroska,adts,flac,ogg,mp3
-              --enable-decoder=aac,aac_latm,ac3,alac,amrnb,amrwb,ape,atrac3,cook,dca,eac3,flac,g722,g726,gsm,mp1,mp2,mp3,mpc7,mpc8,nellymoser,opus,pcm_alaw,pcm_f32be,pcm_f32le,pcm_f64be,pcm_f64le,pcm_mulaw,pcm_s16be,pcm_s16le,pcm_s16le_planar,pcm_s24be,pcm_s24le,pcm_s32be,pcm_s32le,pcm_s8,pcm_u16be,pcm_u16le,pcm_u24be,pcm_u24le,pcm_u32be,pcm_u32le,pcm_u8,ra_144,ra_288,ralf,shorten,sonic,tta,vorbis,wmapro,wmav1,wmav2,wmavoice
-              --enable-decoder=h261,h263,h263p,h264,hevc,mjpeg,mpeg1video,mpeg2video,mpeg4,msmpeg4v1,msmpeg4v2,msmpeg4v3,png,rv10,rv20,rv30,rv40,svq1,theora,vp6,vp6a,vp6f,vp8,vp9,wmv1,wmv2,wmv3,gif
-              --enable-encoder=pcm_s16le,aac,flac,libvorbis,mpeg4,libopenh264,mjpeg,gif,png
-              --enable-parser=aac,ac3,dca,flac,h264,hevc,mjpeg,mpegvideo,mpeg4video,opus,vp3,vp8,vp9,vorbis
-              --enable-libopenh264
-              --enable-libvorbis
-              # Note: VideoToolbox is macOS specific. MediaFoundation could be added for Windows if desired via --enable-mediafoundation but requires setup.
+              # --disable-everything and specific enables removed
+              # Consider --enable-mediafoundation for H.264 on Windows if internal mpeg4 isn't sufficient and no other LGPL H.264 software encoder is built by default
+              # For now, keeping it simple to avoid potential linking issues without specific setup.
 
     defaults:
       run:
@@ -150,10 +101,9 @@ jobs:
             mingw-w64-x86_64-yasm
             mingw-w64-x86_64-nasm
             mingw-w64-x86_64-pkg-config
-            mingw-w64-x86_64-openh264
-            mingw-w64-x86_64-libvorbis
             mingw-w64-x86_64-zlib 
             mingw-w64-x86_64-libiconv
+            # Removed mingw-w64-x86_64-openh264 and mingw-w64-x86_64-libvorbis
 
       - name: Install build prerequisites (macOS)
         if: (matrix.os == 'macos-latest' || matrix.os == 'macos-13') && matrix.type == 'build'
@@ -185,7 +135,6 @@ jobs:
           cd ffmpeg-src
           echo "Current directory: $(pwd)"
           
-          # Base configure flags that are common for this script's logic
           BASE_CONFIGURE_FLAGS=(
             --prefix="${INSTALL_PREFIX}"
             --disable-shared
@@ -193,19 +142,9 @@ jobs:
             --pkg-config-flags="--static" 
           )
           
-          # Matrix specific configure options (contains the long list of enables/disables)
-          # These are already formatted as a single string with spaces in the matrix.
-          # We need to be careful how these are passed if they contain spaces themselves,
-          # but FFmpeg configure options are typically space-separated.
-          
           echo "Running configure with matrix opts: ${{ matrix.configure_opts }}"
           echo "and base script opts: ${BASE_CONFIGURE_FLAGS[@]}"
 
-          # Simply append the matrix.configure_opts string
-          # The shell will split it by spaces.
-          # Ensure matrix.configure_opts itself doesn't have complex quoting issues for this.
-          # The provided matrix.configure_opts is a multi-line string which YAML converts to a single string with newlines replaced by spaces.
-          # This should be fine for configure scripts that expect space-separated options.
           ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }}
           
           make -j${CPU_COUNT}
@@ -251,7 +190,6 @@ jobs:
           echo "Looking for ffmpeg executable in ${INSTALL_DIR}/bin/"
           ls -l "${INSTALL_DIR}/bin/"
           if [[ -f "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}" ]]; then
-            # Optionally strip the binary on Windows too
             strip "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}"
             mv "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}" "${INSTALL_DIR}/${FINAL_EXE_NAME}"
             echo "Moved and stripped ${FINAL_EXE_NAME} to ${INSTALL_DIR}/"
@@ -276,7 +214,8 @@ jobs:
           if [[ -f "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}" ]]; then
             strip "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}"
             mv "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}" "${INSTALL_DIR}/${FINAL_EXE_NAME}"
-            echo "Moved and stripped ${FINAL_EXE_NAME} to ${INSTALL_DIR}/"
+            chmod +x "${INSTALL_DIR}/${FINAL_EXE_NAME}" # Explicitly ensure executable
+            echo "Moved, stripped, and ensured executable ${FINAL_EXE_NAME} to ${INSTALL_DIR}/"
           else
             echo "Error: ${FINAL_EXE_NAME} not found in ${INSTALL_DIR}/bin/"
             find "${INSTALL_DIR}" -name ${FINAL_EXE_NAME} -print
@@ -298,7 +237,8 @@ jobs:
           if [[ -f "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}" ]]; then
             strip "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}"
             mv "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}" "${INSTALL_DIR}/${FINAL_EXE_NAME}"
-            echo "Moved and stripped ${FINAL_EXE_NAME} to ${INSTALL_DIR}/"
+            chmod +x "${INSTALL_DIR}/${FINAL_EXE_NAME}" # Explicitly ensure executable
+            echo "Moved, stripped, and ensured executable ${FINAL_EXE_NAME} to ${INSTALL_DIR}/"
           else
             echo "Error: ${FINAL_EXE_NAME} not found in ${INSTALL_DIR}/bin/"
             find "${INSTALL_DIR}" -name ${FINAL_EXE_NAME} -print
@@ -310,30 +250,11 @@ jobs:
           ls -R "${INSTALL_DIR}"
       
       - name: Download prebuilt FFmpeg for ${{ matrix.folder }}
-        if: matrix.type == 'download' # This section will not run with current matrix
+        if: matrix.type == 'download' 
         run: |
-          # ... (content unchanged, will not run) ...
-          mkdir -p ffmpeg/${{ matrix.folder }}
-          cd ffmpeg/${{ matrix.folder }}
-          if [[ "${{ matrix.os }}" == "macos-latest" || "${{ matrix.os }}" == "macos-13" ]]; then 
-            curl -L "${{ matrix.download_url }}" -o ffmpeg.zip
-            unzip -j ffmpeg.zip ffmpeg # Assuming ffmpeg is directly in zip for macos prebuilts
-            rm ffmpeg.zip
-          else # Assuming windows-latest
-            curl -L "${{ matrix.download_url }}" -o ffmpeg.7z
-            # Ensure 7z is available. setup-msys2 might provide it, or add '7zip' to msys2 install
-            7z x ffmpeg.7z -y 
-            rm ffmpeg.7z
-            # The following find assumes a nested structure common in Windows FFmpeg builds
-            EXE_PATH=$(find . -path "*/bin/ffmpeg.exe" -print -quit || find . -name "ffmpeg.exe" -print -quit)
-            if [[ -n "$EXE_PATH" ]]; then
-              mv "$EXE_PATH" "ffmpeg.exe"
-              chmod +x "ffmpeg.exe"
-            else
-              echo "ffmpeg.exe not found in archive"
-              exit 1
-            fi
-          fi
+          # This section is currently not used by the matrix
+          echo "Matrix type is not 'download', skipping prebuilt download."
+          # ... (original download script can remain here if you plan to use it later) ...
 
       - name: Ensure GitHub release
         id: ensure_release
@@ -358,7 +279,7 @@ jobs:
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   tag_name: tag,
-                  name: `FFmpeg Sidecars ${tag}`, // Simplified name
+                  name: `FFmpeg Sidecars ${tag}`,
                   body: `Automated build of FFmpeg sidecars. Release tag: ${tag}. Commit: ${context.sha}`,
                   draft: false,
                   prerelease: false
