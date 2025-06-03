@@ -12,7 +12,7 @@ on:
   workflow_call:
 
 env:
-  FFMPEG_TAG: "release/4.4" # Consider using a more recent release if compatible, e.g., "release/5.1" or "release/6.0"
+  FFMPEG_TAG: "release/4.4" # Consider using a more recent release if compatible
 
 jobs:
   ffmpeg:
@@ -30,26 +30,23 @@ jobs:
             type: build
             install_deps: |
               brew install yasm pkg-config nasm
-            cpu_count: "$(sysctl -n hw.logicalcpu)"
-            configure_opts: "--arch=arm64 --disable-programs=ffplay,ffprobe --enable-protocol=file" # Added --disable-programs and --enable-protocol=file for minimal build
+            # cpu_count is now set in the build step
+            configure_opts: "--arch=arm64 --disable-programs=ffplay,ffprobe --enable-protocol=file"
           - os: macos-latest
             folder: macos-x86_64
             type: build
             install_deps: |
               brew install yasm pkg-config nasm
-            cpu_count: "$(sysctl -n hw.logicalcpu)"
-            configure_opts: "--arch=x86_64 --disable-gpl --disable-programs=ffplay,ffprobe --enable-protocol=file" # Added --disable-gpl and minimal build flags
+            # cpu_count is now set in the build step
+            configure_opts: "--arch=x86_64 --disable-gpl --disable-programs=ffplay,ffprobe --enable-protocol=file"
           - os: windows-latest
             folder: windows-x86_64
             type: build
-            install_deps: |
-              echo "Using MSYS2 pacman to install yasm, nasm, make, and mingw-w64-x86_64-pkg-config"
-              pacman -Syu --noconfirm yasm nasm make mingw-w64-x86_64-pkg-config
-            cpu_count: "nproc" # nproc should be available in MSYS2 bash
-            configure_opts: "--disable-gpl --target-os=win64 --disable-programs=ffplay,ffprobe --enable-protocol=file" # Added --disable-gpl and minimal build flags
+            # install_deps and cpu_count are handled by msys2 setup and in build step
+            configure_opts: "--disable-gpl --target-os=win64 --disable-programs=ffplay,ffprobe --enable-protocol=file"
     defaults:
       run:
-        shell: bash
+        shell: bash # Default shell for most steps
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -57,8 +54,21 @@ jobs:
           persist-credentials: true
           fetch-depth: 0
 
-      - name: Install build prerequisites
-        if: matrix.type == 'build'
+      - name: Setup MSYS2 environment (Windows)
+        if: matrix.os == 'windows-latest' && matrix.type == 'build'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            make
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-yasm
+            mingw-w64-x86_64-nasm
+            mingw-w64-x86_64-pkg-config
+
+      - name: Install build prerequisites (macOS)
+        if: matrix.os == 'macos-latest' && matrix.type == 'build' && matrix.install_deps != ''
         run: |
           echo "Installing build dependencies on $RUNNER_OS..."
           ${{ matrix.install_deps }}
@@ -71,22 +81,30 @@ jobs:
 
       - name: Configure & build FFmpeg
         if: matrix.type == 'build'
+        shell: ${{ matrix.os == 'windows-latest' && 'msys2 {0}' || 'bash' }} # Conditional shell
         run: |
-          echo "Configuring and building FFmpeg for ${{ matrix.folder }}"
-          mkdir -p ffmpeg/${{ matrix.folder }}
+          echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
+          CPU_COUNT=$(nproc)
+          echo "Using $CPU_COUNT cores for make"
+
+          mkdir -p ffmpeg/${{ matrix.folder }} # Ensure target directory for prefix exists
           cd ffmpeg-src
+
           echo "Current directory: $(pwd)"
           echo "Running configure with opts: ${{ matrix.configure_opts }}"
+
           ./configure             --prefix="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"             --disable-shared             --enable-static             --disable-doc             ${{ matrix.configure_opts }}
-          make -j${{ matrix.cpu_count }}
+
+          make -j${CPU_COUNT}
           make install
           cd .. # Return to workspace root for consistency
 
       - name: Trim Build
         if: matrix.type == 'build'
+        shell: ${{ matrix.os == 'windows-latest' && 'msys2 {0}' || 'bash' }} # Conditional shell
         run: |
           echo "Trimming build for ${{ matrix.folder }} on ${{ matrix.os }}"
-          INSTALL_DIR="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}" # Use absolute path for safety
+          INSTALL_DIR="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
           FINAL_EXE_NAME="ffmpeg"
 
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
@@ -96,7 +114,6 @@ jobs:
           echo "Looking for ffmpeg executable in ${INSTALL_DIR}/bin/"
           ls -l "${INSTALL_DIR}/bin/"
 
-          # Move the main ffmpeg executable to the root of INSTALL_DIR
           if [[ -f "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}" ]]; then
             mv "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}" "${INSTALL_DIR}/${FINAL_EXE_NAME}"
             echo "Moved ${FINAL_EXE_NAME} to ${INSTALL_DIR}/"
@@ -105,16 +122,17 @@ jobs:
             exit 1
           fi
 
-          # Remove unnecessary directories from the install prefix
           echo "Removing bin, include, lib, share directories from ${INSTALL_DIR}"
-          rm -rf "${INSTALL_DIR}/bin"                  "${INSTALL_DIR}/include"                  "${INSTALL_DIR}/lib"                  "${INSTALL_DIR}/share"                  "${INSTALL_DIR}/doc" # doc might not exist due to --disable-doc
+          rm -rf "${INSTALL_DIR}/bin"                  "${INSTALL_DIR}/include"                  "${INSTALL_DIR}/lib"                  "${INSTALL_DIR}/share"                  "${INSTALL_DIR}/doc"
 
           echo "Contents of ${INSTALL_DIR} after trim:"
           ls -R "${INSTALL_DIR}"
 
-      - name: Download prebuilt FFmpeg for ${{ matrix.folder }} # This step will be skipped as all types are 'build'
+      # This step will be skipped as all types are 'build'
+      - name: Download prebuilt FFmpeg for ${{ matrix.folder }}
         if: matrix.type == 'download'
         run: |
+          # ... (content unchanged, will not run) ...
           mkdir -p ffmpeg/${{ matrix.folder }}
           cd ffmpeg/${{ matrix.folder }}
           if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
@@ -132,6 +150,7 @@ jobs:
 
       - name: Ensure GitHub release
         id: ensure_release
+        # ... (content unchanged) ...
         uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -151,16 +170,17 @@ jobs:
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 tag_name: tag,
-                name: `harvey-sidecars ${tag}`, // Use tag_name for release name for clarity
+                name: `harvey-sidecars ${tag}`,
                 body: `Automated build of FFmpeg, Whisper.cpp, Diarize-CLI for Harvey App. Release tag: ${tag}. Commit: ${context.sha}`,
                 draft: false,
-                prerelease: false // Change to true if these are not production-ready
+                prerelease: false
               });
               return rel.data.upload_url;
             }
 
       - name: Upload FFmpeg asset
         uses: actions/upload-release-asset@v1
+        # ... (content unchanged) ...
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
