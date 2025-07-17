@@ -339,16 +339,12 @@ jobs:
 
       - name: Calculate and upload checksum
         run: |
+          cd ffmpeg/${{ matrix.folder }}
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            BINARY_PATH="ffmpeg/${{ matrix.folder }}/ffmpeg.exe"
-            SHASUM_CMD="sha256sum"
+            sha256sum ffmpeg.exe > ffmpeg.exe.sha256
           else
-            BINARY_PATH="ffmpeg/${{ matrix.folder }}/ffmpeg"
-            SHASUM_CMD="shasum -a 256"
+            shasum -a 256 ffmpeg > ffmpeg.sha256
           fi
-
-          # Calculate and save checksum
-          $SHASUM_CMD $BINARY_PATH > ${BINARY_PATH}.sha256
       - name: Upload checksum
         uses: actions/upload-release-asset@v1
         env:

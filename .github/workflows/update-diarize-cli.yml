@@ -210,16 +210,12 @@ jobs:
       # Step 13: Calculate and upload checksum
       - name: Calculate and upload checksum
         run: |
+          cd diarize-cli/${{ matrix.folder }}
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            BINARY_PATH="diarize-cli/${{ matrix.folder }}/diarize-cli.exe"
-            SHASUM_CMD="sha256sum"
+            sha256sum diarize-cli.exe > diarize-cli.exe.sha256
           else
-            BINARY_PATH="diarize-cli/${{ matrix.folder }}/diarize-cli"
-            SHASUM_CMD="shasum -a 256"
+            shasum -a 256 diarize-cli > diarize-cli.sha256
           fi
-
-          # Calculate and save checksum
-          $SHASUM_CMD $BINARY_PATH > ${BINARY_PATH}.sha256
       - name: Upload checksum
         uses: actions/upload-release-asset@v1
         env:

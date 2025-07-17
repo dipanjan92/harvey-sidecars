@@ -117,16 +117,12 @@ jobs:
       # 8. Calculate and upload checksum
       - name: Calculate and upload checksum
         run: |
+          cd whisper-cpp/${{ matrix.folder }}
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            BINARY_PATH="whisper-cpp/${{ matrix.folder }}/whisper-cpp.exe"
-            SHASUM_CMD="sha256sum"
+            sha256sum whisper-cpp.exe > whisper-cpp.exe.sha256
           else
-            BINARY_PATH="whisper-cpp/${{ matrix.folder }}/whisper-cpp"
-            SHASUM_CMD="shasum -a 256"
+            shasum -a 256 whisper-cpp > whisper-cpp.sha256
           fi
-
-          # Calculate and save checksum
-          $SHASUM_CMD $BINARY_PATH > ${BINARY_PATH}.sha256
       - name: Upload checksum
         uses: actions/upload-release-asset@v1
         env:
