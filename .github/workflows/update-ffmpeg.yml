@@ -29,11 +29,11 @@ jobs:
             folder: macos-arm64
             type: build
             install_deps: |
-              brew install yasm pkg-config nasm lame # Core build tools for FFmpeg
+              brew install yasm pkg-config nasm # Core build tools for FFmpeg
             configure_opts: >-
               --arch=arm64
-              --enable-gpl
-              --enable-libmp3lame
+              --disable-gpl
+              --disable-libmp3lame
               --disable-nonfree
               --disable-ffplay
               --disable-ffprobe
@@ -134,8 +134,6 @@ jobs:
           cd ffmpeg-src
           echo "Current directory: $(pwd)"
 
-          LDFLAGS="-L$(brew --prefix lame)/lib"
-          CPPFLAGS="-I$(brew --prefix lame)/include"
 
           BASE_CONFIGURE_FLAGS=(
             --prefix="${INSTALL_PREFIX}"
@@ -147,7 +145,13 @@ jobs:
           echo "Running configure with matrix opts: ${{ matrix.configure_opts }}"
           echo "and base script opts: ${BASE_CONFIGURE_FLAGS[@]}"
 
-          ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }} --extra-ldflags="$LDFLAGS" --extra-cflags="$CPPFLAGS"
+          if [[ "${{ matrix.folder }}" == "macos-x86_64" ]]; then
+            LDFLAGS="-L$(brew --prefix lame)/lib"
+            CPPFLAGS="-I$(brew --prefix lame)/include"
+            ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }} --extra-ldflags="$LDFLAGS" --extra-cflags="$CPPFLAGS"
+          else
+            ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }}
+          fi
 
           make -j${CPU_COUNT}
           make install
