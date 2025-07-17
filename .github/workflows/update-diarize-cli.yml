@@ -166,43 +166,30 @@ jobs:
             chmod +x diarize-cli/${{ matrix.folder }}/diarize-cli
           fi
 
-      # Step: Ensure GitHub release exists (create if missing)
-      - name: Ensure GitHub release
-        id: ensure_release
-        uses: actions/github-script@v6
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          result-encoding: string
-          script: |
-            const tag = process.env.RELEASE_TAG;
-            try {
-              const rel = await github.rest.repos.getReleaseByTag({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                tag
-              });
-              return rel.data.upload_url;
-            } catch {
-              const rel = await github.rest.repos.createRelease({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                tag_name: tag,
-                commitish: context.sha,
-                name: `harvey-sidecars ${tag}`,
-                body: `Automated build of diarize-cli for ${process.env.MATRIX_FOLDER}`,
-                draft: false,
-                prerelease: false
-              });
-              return rel.data.upload_url;
-            }
+      # Step 11: Calculate checksum and upload artifact
+      - name: Package and upload artifact
+        run: |
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            BINARY_PATH="diarize-cli/${{ matrix.folder }}/diarize-cli.exe"
+            SHASUM_CMD="sha256sum"
+          else
+            BINARY_PATH="diarize-cli/${{ matrix.folder }}/diarize-cli"
+            SHASUM_CMD="shasum -a 256"
+          fi
 
-      # Step: Upload diarize-cli asset
-      - name: Upload diarize-cli asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Calculate and save checksum
+          $SHASUM_CMD $BINARY_PATH > ${BINARY_PATH}.sha256
+
+          # Prepare artifact directory
+          ARTIFACT_DIR="diarize-cli-artifact-${{ matrix.folder }}"
+          mkdir -p $ARTIFACT_DIR
+          mv $BINARY_PATH $ARTIFACT_DIR/
+          mv ${BINARY_PATH}.sha256 $ARTIFACT_DIR/
+
+          # Upload artifact
+          echo "Uploading artifact: $ARTIFACT_DIR"
+          ls -R $ARTIFACT_DIR
+      - uses: actions/upload-artifact@v3
         with:
-          upload_url: ${{ steps.ensure_release.outputs.result }}
-          asset_path: diarize-cli/${{ matrix.folder }}/diarize-cli${{ matrix.os == 'windows-latest' && '.exe' || '' }}
-          asset_name: diarize-cli-${{ matrix.folder }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}
-          asset_content_type: application/octet-stream
+          name: diarize-cli-artifact-${{ matrix.folder }}
+          path: diarize-cli-artifact-${{ matrix.folder }}
