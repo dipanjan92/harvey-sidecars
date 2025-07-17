@@ -95,7 +95,7 @@ jobs:
           # Upload artifact
           echo "Uploading artifact: $ARTIFACT_DIR"
           ls -R $ARTIFACT_DIR
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: whisper-cpp-artifact-${{ matrix.folder }}
           path: whisper-cpp-artifact-${{ matrix.folder }}

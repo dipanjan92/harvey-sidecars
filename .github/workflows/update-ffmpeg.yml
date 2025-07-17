@@ -313,7 +313,7 @@ jobs:
           # Upload artifact
           echo "Uploading artifact: $ARTIFACT_DIR"
           ls -R $ARTIFACT_DIR
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: ffmpeg-artifact-${{ matrix.folder }}
           path: ffmpeg-artifact-${{ matrix.folder }}
