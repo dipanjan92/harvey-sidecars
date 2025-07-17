@@ -128,14 +128,43 @@ jobs:
           echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
           CPU_COUNT=$(nproc)
           echo "Using $CPU_COUNT cores for make"
-          
+
           INSTALL_PREFIX="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
           mkdir -p "${INSTALL_PREFIX}"
           cd ffmpeg-src
           echo "Current directory: $(pwd)"
-          
+
           LDFLAGS="-L$(brew --prefix lame)/lib"
           CPPFLAGS="-I$(brew --prefix lame)/include"
+
+          BASE_CONFIGURE_FLAGS=(
+            --prefix="${INSTALL_PREFIX}"
+            --disable-shared
+            --enable-static
+            --pkg-config-flags="--static"
+          )
+
+          echo "Running configure with matrix opts: ${{ matrix.configure_opts }}"
+          echo "and base script opts: ${BASE_CONFIGURE_FLAGS[@]}"
+
+          ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }} --extra-ldflags="$LDFLAGS" --extra-cflags="$CPPFLAGS"
+
+          make -j${CPU_COUNT}
+          make install
+          cd ..
+
+      - name: Configure & build FFmpeg (Windows)
+        if: matrix.type == 'build' && matrix.os == 'windows-latest'
+        shell: msys2 {0}
+        run: |
+          echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
+          CPU_COUNT=$(nproc)
+          echo "Using $CPU_COUNT cores for make"
+
+          INSTALL_PREFIX="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
+          mkdir -p "${INSTALL_PREFIX}"
+          cd ffmpeg-src
+          echo "Current directory: $(pwd)"
 
           BASE_CONFIGURE_FLAGS=(
             --prefix="${INSTALL_PREFIX}"
@@ -147,7 +176,7 @@ jobs:
           echo "Running configure with matrix opts: ${{ matrix.configure_opts }}"
           echo "and base script opts: ${BASE_CONFIGURE_FLAGS[@]}"
 
-          ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }} --extra-ldflags="$LDFLAGS" --extra-cflags="$CPPFLAGS"
+          ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }}
           
           make -j${CPU_COUNT}
           make install
