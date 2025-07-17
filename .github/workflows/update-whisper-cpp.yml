@@ -45,7 +45,7 @@ jobs:
       - name: Install prerequisites
         run: |
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            choco install cmake libsdl2-dev -y
+            choco install cmake sdl2 -y
           else
             brew install cmake git sdl2
           fi
