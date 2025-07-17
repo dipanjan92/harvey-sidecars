@@ -72,8 +72,50 @@ jobs:
             cp whisper.cpp/build/bin/whisper-cli whisper-cpp/${{ matrix.folder }}/whisper-cpp
           fi
 
-      # 6. Package and upload artifact
-      - name: Package and upload artifact
+      # 6. Ensure GitHub release exists (create if missing)
+      - name: Ensure GitHub release
+        id: ensure_release
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          result-encoding: string
+          script: |
+            // Use the user-supplied tag
+            const tag = process.env.RELEASE_TAG;
+            try {
+              const rel = await github.rest.repos.getReleaseByTag({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag
+              });
+              return rel.data.upload_url;
+            } catch {
+              const rel = await github.rest.repos.createRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag_name: tag,
+                commitish: context.sha,
+                name: `harvey-sidecars ${tag}`,
+                body: `Automated build of whisper-cpp for ${process.env.MATRIX_FOLDER}`,
+                draft: false,
+                prerelease: false
+              });
+              return rel.data.upload_url;
+            }
+
+      # 7. Upload whisper-cpp to that release
+      - name: Upload whisper-cpp asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.ensure_release.outputs.result }}
+          asset_path: whisper-cpp/${{ matrix.folder }}/whisper-cpp${{ matrix.os == 'windows-latest' && '.exe' || '' }}
+          asset_name: whisper-cpp-${{ matrix.folder }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}
+          asset_content_type: application/octet-stream
+
+      # 8. Calculate and upload checksum
+      - name: Calculate and upload checksum
         run: |
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
             BINARY_PATH="whisper-cpp/${{ matrix.folder }}/whisper-cpp.exe"
@@ -85,17 +127,12 @@ jobs:
 
           # Calculate and save checksum
           $SHASUM_CMD $BINARY_PATH > ${BINARY_PATH}.sha256
-
-          # Prepare artifact directory
-          ARTIFACT_DIR="whisper-cpp-artifact-${{ matrix.folder }}"
-          mkdir -p $ARTIFACT_DIR
-          mv $BINARY_PATH $ARTIFACT_DIR/
-          mv ${BINARY_PATH}.sha256 $ARTIFACT_DIR/
-
-          # Upload artifact
-          echo "Uploading artifact: $ARTIFACT_DIR"
-          ls -R $ARTIFACT_DIR
-      - uses: actions/upload-artifact@v4
+      - name: Upload checksum
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          name: whisper-cpp-artifact-${{ matrix.folder }}
-          path: whisper-cpp-artifact-${{ matrix.folder }}
+          upload_url: ${{ steps.ensure_release.outputs.result }}
+          asset_path: whisper-cpp/${{ matrix.folder }}/whisper-cpp${{ matrix.os == 'windows-latest' && '.exe' || '' }}.sha256
+          asset_name: whisper-cpp-${{ matrix.folder }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}.sha256
+          asset_content_type: text/plain

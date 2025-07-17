@@ -291,7 +291,53 @@ jobs:
           echo "Matrix type is not 'download', skipping prebuilt download."
           # ... (original download script can remain here if you plan to use it later) ...
 
-      - name: Package and upload artifact
+      - name: Ensure GitHub release
+        id: ensure_release
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          result-encoding: string
+          script: |
+            const tag = process.env.RELEASE_TAG;
+            try {
+              const rel = await github.rest.repos.getReleaseByTag({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag
+              });
+              console.log(`Found existing release for tag ${tag}`);
+              return rel.data.upload_url;
+            } catch (e) {
+              if (e.status === 404) {
+                console.warn(`Release ${tag} not found, creating it.`);
+                const rel = await github.rest.repos.createRelease({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  tag_name: tag,
+                  name: `FFmpeg Sidecars ${tag}`,
+                  body: `Automated build of FFmpeg sidecars. Release tag: ${tag}. Commit: ${context.sha}`,
+                  draft: false,
+                  prerelease: false
+                });
+                console.log(`Created new release for tag ${tag}`);
+                return rel.data.upload_url;
+              } else {
+                console.error(`Error checking release: ${e.message}`);
+                throw e;
+              }
+            }
+
+      - name: Upload FFmpeg asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.ensure_release.outputs.result }}
+          asset_path: ffmpeg/${{ matrix.folder }}/ffmpeg${{ matrix.os == 'windows-latest' && '.exe' || '' }}
+          asset_name: ffmpeg-${{ matrix.folder }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}
+          asset_content_type: application/octet-stream
+
+      - name: Calculate and upload checksum
         run: |
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
             BINARY_PATH="ffmpeg/${{ matrix.folder }}/ffmpeg.exe"
@@ -303,17 +349,12 @@ jobs:
 
           # Calculate and save checksum
           $SHASUM_CMD $BINARY_PATH > ${BINARY_PATH}.sha256
-
-          # Prepare artifact directory
-          ARTIFACT_DIR="ffmpeg-artifact-${{ matrix.folder }}"
-          mkdir -p $ARTIFACT_DIR
-          mv $BINARY_PATH $ARTIFACT_DIR/
-          mv ${BINARY_PATH}.sha256 $ARTIFACT_DIR/
-
-          # Upload artifact
-          echo "Uploading artifact: $ARTIFACT_DIR"
-          ls -R $ARTIFACT_DIR
-      - uses: actions/upload-artifact@v4
+      - name: Upload checksum
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          name: ffmpeg-artifact-${{ matrix.folder }}
-          path: ffmpeg-artifact-${{ matrix.folder }}
+          upload_url: ${{ steps.ensure_release.outputs.result }}
+          asset_path: ffmpeg/${{ matrix.folder }}/ffmpeg${{ matrix.os == 'windows-latest' && '.exe' || '' }}.sha256
+          asset_name: ffmpeg-${{ matrix.folder }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}.sha256
+          asset_content_type: text/plain
