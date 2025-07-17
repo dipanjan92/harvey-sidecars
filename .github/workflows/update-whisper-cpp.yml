@@ -17,10 +17,10 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: macos-latest
+          - os: macos-13
             folder: macos-x86_64
             cmake_opts: ""
-          - os: macos-latest
+          - os: macos-14
             folder: macos-arm64
             cmake_opts: "-DCMAKE_OSX_ARCHITECTURES=arm64"
           - os: windows-latest

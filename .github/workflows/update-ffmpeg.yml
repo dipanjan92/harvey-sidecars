@@ -25,14 +25,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-latest # For arm64
+          - os: macos-14 # For arm64
             folder: macos-arm64
             type: build
             install_deps: |
-              brew install yasm pkg-config nasm # Core build tools for FFmpeg
+              brew install yasm pkg-config nasm lame # Core build tools for FFmpeg
             configure_opts: >-
               --arch=arm64
-              --disable-gpl
+              --enable-gpl
+              --enable-libmp3lame
               --disable-nonfree
               --disable-ffplay
               --disable-ffprobe
@@ -47,10 +48,11 @@ jobs:
             folder: macos-x86_64
             type: build
             install_deps: |
-              brew install yasm pkg-config nasm # Core build tools for FFmpeg
+              brew install yasm pkg-config nasm lame # Core build tools for FFmpeg
             configure_opts: >-
               --arch=x86_64
-              --disable-gpl
+              --enable-gpl
+              --enable-libmp3lame
               --disable-nonfree
               --disable-ffplay
               --disable-ffprobe

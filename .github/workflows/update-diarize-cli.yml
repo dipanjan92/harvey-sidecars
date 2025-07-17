@@ -29,9 +29,9 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: macos-latest
+          - os: macos-13
             folder: macos-x86_64
-          - os: macos-latest # Note: GitHub Actions macos-latest might run on arm64 or x86_64.
+          - os: macos-14
             folder: macos-arm64
           - os: windows-latest
             folder: windows-x86_64
