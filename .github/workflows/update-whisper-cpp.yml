@@ -62,14 +62,16 @@ jobs:
           cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF ${{ matrix.cmake_opts }}
           cmake --build . --config Release
 
-      # 5. Copy the binary into our sidecar folder
-      - name: Copy whisper-cpp binary
+      # 5. Copy the binaries into our sidecar folder
+      - name: Copy whisper-cpp binaries
         run: |
           mkdir -p whisper-cpp/${{ matrix.folder }}
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
             cp whisper.cpp/build/bin/Release/whisper-cli.exe whisper-cpp/${{ matrix.folder }}/whisper-cpp.exe
+            cp whisper.cpp/build/bin/Release/stream.exe whisper-cpp/${{ matrix.folder }}/stream.exe
           else
             cp whisper.cpp/build/bin/whisper-cli whisper-cpp/${{ matrix.folder }}/whisper-cpp
+            cp whisper.cpp/build/bin/stream whisper-cpp/${{ matrix.folder }}/stream
           fi
 
       # 6. Ensure GitHub release exists (create if missing)
@@ -114,20 +116,43 @@ jobs:
           asset_name: whisper-cpp-${{ matrix.folder }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}
           asset_content_type: application/octet-stream
 
-      # 8. Calculate and upload checksum
-      - name: Calculate and upload checksum
+      # 8. Upload stream to that release
+      - name: Upload stream asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.ensure_release.outputs.result }}
+          asset_path: whisper-cpp/${{ matrix.folder }}/stream${{ matrix.os == 'windows-latest' && '.exe' || '' }}
+          asset_name: stream-${{ matrix.folder }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}
+          asset_content_type: application/octet-stream
+
+      # 9. Calculate and upload checksums
+      - name: Calculate and upload checksums
         run: |
           cd whisper-cpp/${{ matrix.folder }}
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            BINARY_NAME="whisper-cpp.exe"
-            ASSET_NAME="whisper-cpp-${{ matrix.folder }}.exe"
-            sha256sum $BINARY_NAME | sed "s/$BINARY_NAME/$ASSET_NAME/" > ${ASSET_NAME}.sha256
+            # Checksum for whisper-cpp
+            BINARY_NAME_W="whisper-cpp.exe"
+            ASSET_NAME_W="whisper-cpp-${{ matrix.folder }}.exe"
+            sha256sum $BINARY_NAME_W | sed "s/$BINARY_NAME_W/$ASSET_NAME_W/" > ${ASSET_NAME_W}.sha256
+            # Checksum for stream
+            BINARY_NAME_S="stream.exe"
+            ASSET_NAME_S="stream-${{ matrix.folder }}.exe"
+            sha256sum $BINARY_NAME_S | sed "s/$BINARY_NAME_S/$ASSET_NAME_S/" > ${ASSET_NAME_S}.sha256
           else
-            BINARY_NAME="whisper-cpp"
-            ASSET_NAME="whisper-cpp-${{ matrix.folder }}"
-            shasum -a 256 $BINARY_NAME | sed "s/$BINARY_NAME/$ASSET_NAME/" > ${ASSET_NAME}.sha256
+            # Checksum for whisper-cpp
+            BINARY_NAME_W="whisper-cpp"
+            ASSET_NAME_W="whisper-cpp-${{ matrix.folder }}"
+            shasum -a 256 $BINARY_NAME_W | sed "s/$BINARY_NAME_W/$ASSET_NAME_W/" > ${ASSET_NAME_W}.sha256
+            # Checksum for stream
+            BINARY_NAME_S="stream"
+            ASSET_NAME_S="stream-${{ matrix.folder }}"
+            shasum -a 256 $BINARY_NAME_S | sed "s/$BINARY_NAME_S/$ASSET_NAME_S/" > ${ASSET_NAME_S}.sha256
           fi
-      - name: Upload checksum
+
+      # 10. Upload checksums
+      - name: Upload whisper-cpp checksum
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -135,4 +160,14 @@ jobs:
           upload_url: ${{ steps.ensure_release.outputs.result }}
           asset_path: whisper-cpp/${{ matrix.folder }}/whisper-cpp-${{ matrix.folder }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}.sha256
           asset_name: whisper-cpp-${{ matrix.folder }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}.sha256
+          asset_content_type: text/plain
+
+      - name: Upload stream checksum
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.ensure_release.outputs.result }}
+          asset_path: whisper-cpp/${{ matrix.folder }}/stream-${{ matrix.folder }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}.sha256
+          asset_name: stream-${{ matrix.folder }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}.sha256
           asset_content_type: text/plain
