@@ -29,9 +29,9 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: macos-latest
+          - os: macos-13
             folder: macos-x86_64
-          - os: macos-latest # Note: GitHub Actions macos-latest might run on arm64 or x86_64.
+          - os: macos-14
             folder: macos-arm64
           - os: windows-latest
             folder: windows-x86_64
@@ -58,6 +58,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
+          pip install "numpy<2.0"
           pip install pyannote.audio huggingface_hub pyinstaller matplotlib lightning_fabric speechbrain
 
       # Step 4: Log in to Hugging Face CLI
@@ -165,7 +166,7 @@ jobs:
             chmod +x diarize-cli/${{ matrix.folder }}/diarize-cli
           fi
 
-      # Step: Ensure GitHub release exists (create if missing)
+      # Step 11: Ensure GitHub release exists (create if missing)
       - name: Ensure GitHub release
         id: ensure_release
         uses: actions/github-script@v6
@@ -195,7 +196,7 @@ jobs:
               return rel.data.upload_url;
             }
 
-      # Step: Upload diarize-cli asset
+      # Step 12: Upload diarize-cli asset
       - name: Upload diarize-cli asset
         uses: actions/upload-release-asset@v1
         env:
@@ -205,3 +206,26 @@ jobs:
           asset_path: diarize-cli/${{ matrix.folder }}/diarize-cli${{ matrix.os == 'windows-latest' && '.exe' || '' }}
           asset_name: diarize-cli-${{ matrix.folder }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}
           asset_content_type: application/octet-stream
+
+      # Step 13: Calculate and upload checksum
+      - name: Calculate and upload checksum
+        run: |
+          cd diarize-cli/${{ matrix.folder }}
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            BINARY_NAME="diarize-cli.exe"
+            ASSET_NAME="diarize-cli-${{ matrix.folder }}.exe"
+            sha256sum $BINARY_NAME | sed "s/$BINARY_NAME/$ASSET_NAME/" > ${ASSET_NAME}.sha256
+          else
+            BINARY_NAME="diarize-cli"
+            ASSET_NAME="diarize-cli-${{ matrix.folder }}"
+            shasum -a 256 $BINARY_NAME | sed "s/$BINARY_NAME/$ASSET_NAME/" > ${ASSET_NAME}.sha256
+          fi
+      - name: Upload checksum
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.ensure_release.outputs.result }}
+          asset_path: diarize-cli/${{ matrix.folder }}/diarize-cli-${{ matrix.folder }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}.sha256
+          asset_name: diarize-cli-${{ matrix.folder }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}.sha256
+          asset_content_type: text/plain

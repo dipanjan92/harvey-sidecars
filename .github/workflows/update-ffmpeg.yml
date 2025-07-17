@@ -25,7 +25,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-latest # For arm64
+          - os: macos-14 # For arm64
             folder: macos-arm64
             type: build
             install_deps: |
@@ -33,6 +33,7 @@ jobs:
             configure_opts: >-
               --arch=arm64
               --disable-gpl
+              --disable-libmp3lame
               --disable-nonfree
               --disable-ffplay
               --disable-ffprobe
@@ -47,10 +48,11 @@ jobs:
             folder: macos-x86_64
             type: build
             install_deps: |
-              brew install yasm pkg-config nasm # Core build tools for FFmpeg
+              brew install yasm pkg-config nasm lame # Core build tools for FFmpeg
             configure_opts: >-
               --arch=x86_64
-              --disable-gpl
+              --enable-gpl
+              --enable-libmp3lame
               --disable-nonfree
               --disable-ffplay
               --disable-ffprobe
@@ -103,7 +105,7 @@ jobs:
             mingw-w64-x86_64-libiconv
 
       - name: Install build prerequisites (macOS)
-        if: (matrix.os == 'macos-latest' || matrix.os == 'macos-13') && matrix.type == 'build'
+        if: (matrix.os == 'macos-14' || matrix.os == 'macos-13') && matrix.type == 'build'
         run: |
           echo "Installing build dependencies on $RUNNER_OS for ${{ matrix.folder }}..."
           if [[ -n "${{ matrix.install_deps }}" ]]; then
@@ -126,12 +128,48 @@ jobs:
           echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
           CPU_COUNT=$(nproc)
           echo "Using $CPU_COUNT cores for make"
-          
+
           INSTALL_PREFIX="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
           mkdir -p "${INSTALL_PREFIX}"
           cd ffmpeg-src
           echo "Current directory: $(pwd)"
-          
+
+
+          BASE_CONFIGURE_FLAGS=(
+            --prefix="${INSTALL_PREFIX}"
+            --disable-shared
+            --enable-static
+            --pkg-config-flags="--static"
+          )
+
+          echo "Running configure with matrix opts: ${{ matrix.configure_opts }}"
+          echo "and base script opts: ${BASE_CONFIGURE_FLAGS[@]}"
+
+          if [[ "${{ matrix.folder }}" == "macos-x86_64" ]]; then
+            LDFLAGS="-L$(brew --prefix lame)/lib"
+            CPPFLAGS="-I$(brew --prefix lame)/include"
+            ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }} --extra-ldflags="$LDFLAGS" --extra-cflags="$CPPFLAGS"
+          else
+            ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }}
+          fi
+
+          make -j${CPU_COUNT}
+          make install
+          cd ..
+
+      - name: Configure & build FFmpeg (Windows)
+        if: matrix.type == 'build' && matrix.os == 'windows-latest'
+        shell: msys2 {0}
+        run: |
+          echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
+          CPU_COUNT=$(nproc)
+          echo "Using $CPU_COUNT cores for make"
+
+          INSTALL_PREFIX="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
+          mkdir -p "${INSTALL_PREFIX}"
+          cd ffmpeg-src
+          echo "Current directory: $(pwd)"
+
           BASE_CONFIGURE_FLAGS=(
             --prefix="${INSTALL_PREFIX}"
             --disable-shared
@@ -149,7 +187,7 @@ jobs:
           cd ..
 
       - name: Configure & build FFmpeg (macOS)
-        if: matrix.type == 'build' && (matrix.os == 'macos-latest' || matrix.os == 'macos-13')
+        if: matrix.type == 'build' && (matrix.os == 'macos-14' || matrix.os == 'macos-13')
         shell: bash
         run: |
           echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
@@ -298,3 +336,25 @@ jobs:
           asset_path: ffmpeg/${{ matrix.folder }}/ffmpeg${{ matrix.os == 'windows-latest' && '.exe' || '' }}
           asset_name: ffmpeg-${{ matrix.folder }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}
           asset_content_type: application/octet-stream
+
+      - name: Calculate and upload checksum
+        run: |
+          cd ffmpeg/${{ matrix.folder }}
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            BINARY_NAME="ffmpeg.exe"
+            ASSET_NAME="ffmpeg-${{ matrix.folder }}.exe"
+            sha256sum $BINARY_NAME | sed "s/$BINARY_NAME/$ASSET_NAME/" > ${ASSET_NAME}.sha256
+          else
+            BINARY_NAME="ffmpeg"
+            ASSET_NAME="ffmpeg-${{ matrix.folder }}"
+            shasum -a 256 $BINARY_NAME | sed "s/$BINARY_NAME/$ASSET_NAME/" > ${ASSET_NAME}.sha256
+          fi
+      - name: Upload checksum
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.ensure_release.outputs.result }}
+          asset_path: ffmpeg/${{ matrix.folder }}/ffmpeg-${{ matrix.folder }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}.sha256
+          asset_name: ffmpeg-${{ matrix.folder }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}.sha256
+          asset_content_type: text/plain
