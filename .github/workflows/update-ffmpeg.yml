@@ -134,6 +134,9 @@ jobs:
           cd ffmpeg-src
           echo "Current directory: $(pwd)"
           
+          LDFLAGS="-L$(brew --prefix lame)/lib"
+          CPPFLAGS="-I$(brew --prefix lame)/include"
+
           BASE_CONFIGURE_FLAGS=(
             --prefix="${INSTALL_PREFIX}"
             --disable-shared
@@ -144,7 +147,7 @@ jobs:
           echo "Running configure with matrix opts: ${{ matrix.configure_opts }}"
           echo "and base script opts: ${BASE_CONFIGURE_FLAGS[@]}"
 
-          ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }}
+          ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }} --extra-ldflags="$LDFLAGS" --extra-cflags="$CPPFLAGS"
           
           make -j${CPU_COUNT}
           make install
