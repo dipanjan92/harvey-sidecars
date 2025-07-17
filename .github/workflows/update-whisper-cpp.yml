@@ -41,25 +41,25 @@ jobs:
           persist-credentials: true
           fetch-depth: 0
 
-      # 2. Install cmake
+      # 2. Install prerequisites including SDL2
       - name: Install prerequisites
         run: |
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            choco install cmake -y
+            choco install cmake sdl2 -y
           else
-            brew install cmake git
+            brew install cmake git sdl2
           fi
 
       # 3. Clone whisper.cpp
       - name: Clone whisper.cpp
         run: git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git whisper.cpp
 
-      # 4. Build whisper-cpp
+      # 4. Build whisper-cpp with SDL2 support
       - name: Build whisper-cpp
         run: |
           mkdir -p whisper.cpp/build
           cd whisper.cpp/build
-          cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF ${{ matrix.cmake_opts }}
+          cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON ${{ matrix.cmake_opts }}
           cmake --build . --config Release
 
       # 5. Copy the binaries into our sidecar folder
@@ -67,10 +67,10 @@ jobs:
         run: |
           mkdir -p whisper-cpp/${{ matrix.folder }}
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            cp whisper.cpp/build/bin/Release/whisper-cli.exe whisper-cpp/${{ matrix.folder }}/whisper-cpp.exe
+            cp whisper.cpp/build/bin/Release/main.exe whisper-cpp/${{ matrix.folder }}/whisper-cpp.exe
             cp whisper.cpp/build/bin/Release/stream.exe whisper-cpp/${{ matrix.folder }}/stream.exe
           else
-            cp whisper.cpp/build/bin/whisper-cli whisper-cpp/${{ matrix.folder }}/whisper-cpp
+            cp whisper.cpp/build/bin/main whisper-cpp/${{ matrix.folder }}/whisper-cpp
             cp whisper.cpp/build/bin/stream whisper-cpp/${{ matrix.folder }}/stream
           fi
 
@@ -82,7 +82,6 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           result-encoding: string
           script: |
-            // Use the user-supplied tag
             const tag = process.env.RELEASE_TAG;
             try {
               const rel = await github.rest.repos.getReleaseByTag({
@@ -105,7 +104,7 @@ jobs:
               return rel.data.upload_url;
             }
 
-      # 7. Upload whisper-cpp to that release
+      # 7. Upload whisper-cpp asset
       - name: Upload whisper-cpp asset
         uses: actions/upload-release-asset@v1
         env:
@@ -116,7 +115,7 @@ jobs:
           asset_name: whisper-cpp-${{ matrix.folder }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}
           asset_content_type: application/octet-stream
 
-      # 8. Upload stream to that release
+      # 8. Upload stream asset
       - name: Upload stream asset
         uses: actions/upload-release-asset@v1
         env:
@@ -132,23 +131,11 @@ jobs:
         run: |
           cd whisper-cpp/${{ matrix.folder }}
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            # Checksum for whisper-cpp
-            BINARY_NAME_W="whisper-cpp.exe"
-            ASSET_NAME_W="whisper-cpp-${{ matrix.folder }}.exe"
-            sha256sum $BINARY_NAME_W | sed "s/$BINARY_NAME_W/$ASSET_NAME_W/" > ${ASSET_NAME_W}.sha256
-            # Checksum for stream
-            BINARY_NAME_S="stream.exe"
-            ASSET_NAME_S="stream-${{ matrix.folder }}.exe"
-            sha256sum $BINARY_NAME_S | sed "s/$BINARY_NAME_S/$ASSET_NAME_S/" > ${ASSET_NAME_S}.sha256
+            sha256sum whisper-cpp.exe | sed "s/whisper-cpp.exe/whisper-cpp-${{ matrix.folder }}.exe/" > whisper-cpp-${{ matrix.folder }}.exe.sha256
+            sha256sum stream.exe | sed "s/stream.exe/stream-${{ matrix.folder }}.exe/" > stream-${{ matrix.folder }}.exe.sha256
           else
-            # Checksum for whisper-cpp
-            BINARY_NAME_W="whisper-cpp"
-            ASSET_NAME_W="whisper-cpp-${{ matrix.folder }}"
-            shasum -a 256 $BINARY_NAME_W | sed "s/$BINARY_NAME_W/$ASSET_NAME_W/" > ${ASSET_NAME_W}.sha256
-            # Checksum for stream
-            BINARY_NAME_S="stream"
-            ASSET_NAME_S="stream-${{ matrix.folder }}"
-            shasum -a 256 $BINARY_NAME_S | sed "s/$BINARY_NAME_S/$ASSET_NAME_S/" > ${ASSET_NAME_S}.sha256
+            shasum -a 256 whisper-cpp | sed "s/whisper-cpp/whisper-cpp-${{ matrix.folder }}/" > whisper-cpp-${{ matrix.folder }}.sha256
+            shasum -a 256 stream | sed "s/stream/stream-${{ matrix.folder }}/" > stream-${{ matrix.folder }}.sha256
           fi
 
       # 10. Upload checksums
