@@ -212,9 +212,13 @@ jobs:
         run: |
           cd diarize-cli/${{ matrix.folder }}
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            sha256sum diarize-cli.exe > diarize-cli.exe.sha256
+            BINARY_NAME="diarize-cli.exe"
+            ASSET_NAME="diarize-cli-${{ matrix.folder }}.exe"
+            sha256sum $BINARY_NAME | sed "s/$BINARY_NAME/$ASSET_NAME/" > ${ASSET_NAME}.sha256
           else
-            shasum -a 256 diarize-cli > diarize-cli.sha256
+            BINARY_NAME="diarize-cli"
+            ASSET_NAME="diarize-cli-${{ matrix.folder }}"
+            shasum -a 256 $BINARY_NAME | sed "s/$BINARY_NAME/$ASSET_NAME/" > ${ASSET_NAME}.sha256
           fi
       - name: Upload checksum
         uses: actions/upload-release-asset@v1
@@ -222,6 +226,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.ensure_release.outputs.result }}
-          asset_path: diarize-cli/${{ matrix.folder }}/diarize-cli${{ matrix.os == 'windows-latest' && '.exe' || '' }}.sha256
+          asset_path: diarize-cli/${{ matrix.folder }}/diarize-cli-${{ matrix.folder }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}.sha256
           asset_name: diarize-cli-${{ matrix.folder }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}.sha256
           asset_content_type: text/plain

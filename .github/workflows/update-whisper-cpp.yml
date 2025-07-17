@@ -119,9 +119,13 @@ jobs:
         run: |
           cd whisper-cpp/${{ matrix.folder }}
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            sha256sum whisper-cpp.exe > whisper-cpp.exe.sha256
+            BINARY_NAME="whisper-cpp.exe"
+            ASSET_NAME="whisper-cpp-${{ matrix.folder }}.exe"
+            sha256sum $BINARY_NAME | sed "s/$BINARY_NAME/$ASSET_NAME/" > ${ASSET_NAME}.sha256
           else
-            shasum -a 256 whisper-cpp > whisper-cpp.sha256
+            BINARY_NAME="whisper-cpp"
+            ASSET_NAME="whisper-cpp-${{ matrix.folder }}"
+            shasum -a 256 $BINARY_NAME | sed "s/$BINARY_NAME/$ASSET_NAME/" > ${ASSET_NAME}.sha256
           fi
       - name: Upload checksum
         uses: actions/upload-release-asset@v1
@@ -129,6 +133,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.ensure_release.outputs.result }}
-          asset_path: whisper-cpp/${{ matrix.folder }}/whisper-cpp${{ matrix.os == 'windows-latest' && '.exe' || '' }}.sha256
+          asset_path: whisper-cpp/${{ matrix.folder }}/whisper-cpp-${{ matrix.folder }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}.sha256
           asset_name: whisper-cpp-${{ matrix.folder }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}.sha256
           asset_content_type: text/plain
