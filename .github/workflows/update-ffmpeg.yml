@@ -105,7 +105,7 @@ jobs:
             mingw-w64-x86_64-libiconv
 
       - name: Install build prerequisites (macOS)
-        if: (matrix.os == 'macos-latest' || matrix.os == 'macos-13') && matrix.type == 'build'
+        if: (matrix.os == 'macos-14' || matrix.os == 'macos-13') && matrix.type == 'build'
         run: |
           echo "Installing build dependencies on $RUNNER_OS for ${{ matrix.folder }}..."
           if [[ -n "${{ matrix.install_deps }}" ]]; then
@@ -151,7 +151,7 @@ jobs:
           cd ..
 
       - name: Configure & build FFmpeg (macOS)
-        if: matrix.type == 'build' && (matrix.os == 'macos-latest' || matrix.os == 'macos-13')
+        if: matrix.type == 'build' && (matrix.os == 'macos-14' || matrix.os == 'macos-13')
         shell: bash
         run: |
           echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
