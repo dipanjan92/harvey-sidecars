@@ -45,7 +45,7 @@ jobs:
       - name: Install prerequisites
         run: |
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            choco install cmake sdl2.devel -y
+            choco install cmake sdl2 -y
           else
             brew install cmake git sdl2
           fi
@@ -69,6 +69,7 @@ jobs:
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
             cp whisper.cpp/build/bin/Release/main.exe whisper-cpp/${{ matrix.folder }}/whisper-cpp.exe
             cp whisper.cpp/build/bin/Release/stream.exe whisper-cpp/${{ matrix.folder }}/stream.exe
+            cp /c/tools/sdl2/bin/SDL2.dll whisper-cpp/${{ matrix.folder }}/SDL2.dll
           else
             cp whisper.cpp/build/bin/main whisper-cpp/${{ matrix.folder }}/whisper-cpp
             cp whisper.cpp/build/bin/stream whisper-cpp/${{ matrix.folder }}/stream
