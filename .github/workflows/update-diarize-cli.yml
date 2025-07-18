@@ -196,36 +196,22 @@ jobs:
               return rel.data.upload_url;
             }
 
-      # Step 12: Upload diarize-cli asset
-      - name: Upload diarize-cli asset
-        uses: actions/upload-release-asset@v1
+      # Step 12: Upload assets
+      - name: Upload assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.ensure_release.outputs.result }}
-          asset_path: diarize-cli/${{ matrix.folder }}/diarize-cli${{ matrix.os == 'windows-latest' && '.exe' || '' }}
-          asset_name: diarize-cli-${{ matrix.folder }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}
-          asset_content_type: application/octet-stream
-
-      # Step 13: Calculate and upload checksum
-      - name: Calculate and upload checksum
         run: |
           cd diarize-cli/${{ matrix.folder }}
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
             BINARY_NAME="diarize-cli.exe"
             ASSET_NAME="diarize-cli-${{ matrix.folder }}.exe"
             sha256sum $BINARY_NAME | sed "s/$BINARY_NAME/$ASSET_NAME/" > ${ASSET_NAME}.sha256
+            gh release upload ${{ github.event.inputs.release_tag }} ${BINARY_NAME}#${ASSET_NAME} --clobber
+            gh release upload ${{ github.event.inputs.release_tag }} ${ASSET_NAME}.sha256 --clobber
           else
             BINARY_NAME="diarize-cli"
             ASSET_NAME="diarize-cli-${{ matrix.folder }}"
             shasum -a 256 $BINARY_NAME | sed "s/$BINARY_NAME/$ASSET_NAME/" > ${ASSET_NAME}.sha256
+            gh release upload ${{ github.event.inputs.release_tag }} ${BINARY_NAME}#${ASSET_NAME} --clobber
+            gh release upload ${{ github.event.inputs.release_tag }} ${ASSET_NAME}.sha256 --clobber
           fi
-      - name: Upload checksum
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.ensure_release.outputs.result }}
-          asset_path: diarize-cli/${{ matrix.folder }}/diarize-cli-${{ matrix.folder }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}.sha256
-          asset_name: diarize-cli-${{ matrix.folder }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}.sha256
-          asset_content_type: text/plain

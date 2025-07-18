@@ -113,57 +113,38 @@ jobs:
               return rel.data.upload_url;
             }
 
-      # 7. Upload whisper-cpp asset
-      - name: Upload whisper-cpp asset
-        uses: actions/upload-release-asset@v1
+      # 7. Upload assets
+      - name: Upload assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.ensure_release.outputs.result }}
-          asset_path: whisper-cpp/${{ matrix.folder }}/whisper-cpp${{ matrix.os == 'windows-latest' && '.exe' || '' }}
-          asset_name: whisper-cpp-${{ matrix.folder }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}
-          asset_content_type: application/octet-stream
-
-      # 8. Upload stream asset
-      - name: Upload stream asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.ensure_release.outputs.result }}
-          asset_path: whisper-cpp/${{ matrix.folder }}/stream${{ matrix.os == 'windows-latest' && '.exe' || '' }}
-          asset_name: stream-${{ matrix.folder }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}
-          asset_content_type: application/octet-stream
-
-      # 9. Calculate and upload checksums
-      - name: Calculate and upload checksums
         run: |
           cd whisper-cpp/${{ matrix.folder }}
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            sha256sum whisper-cpp.exe | sed "s/whisper-cpp.exe/whisper-cpp-${{ matrix.folder }}.exe/" > whisper-cpp-${{ matrix.folder }}.exe.sha256
-            sha256sum stream.exe | sed "s/stream.exe/stream-${{ matrix.folder }}.exe/" > stream-${{ matrix.folder }}.exe.sha256
+            # Upload whisper-cpp
+            BINARY_NAME_W="whisper-cpp.exe"
+            ASSET_NAME_W="whisper-cpp-${{ matrix.folder }}.exe"
+            sha256sum $BINARY_NAME_W | sed "s/$BINARY_NAME_W/$ASSET_NAME_W/" > ${ASSET_NAME_W}.sha256
+            gh release upload ${{ github.event.inputs.release_tag }} ${BINARY_NAME_W}#${ASSET_NAME_W} --clobber
+            gh release upload ${{ github.event.inputs.release_tag }} ${ASSET_NAME_W}.sha256 --clobber
+            # Upload stream
+            BINARY_NAME_S="stream.exe"
+            ASSET_NAME_S="stream-${{ matrix.folder }}.exe"
+            sha256sum $BINARY_NAME_S | sed "s/$BINARY_NAME_S/$ASSET_NAME_S/" > ${ASSET_NAME_S}.sha256
+            gh release upload ${{ github.event.inputs.release_tag }} ${BINARY_NAME_S}#${ASSET_NAME_S} --clobber
+            gh release upload ${{ github.event.inputs.release_tag }} ${ASSET_NAME_S}.sha256 --clobber
+            # Upload SDL2.dll
+            gh release upload ${{ github.event.inputs.release_tag }} SDL2.dll --clobber
           else
-            shasum -a 256 whisper-cpp | sed "s/whisper-cpp/whisper-cpp-${{ matrix.folder }}/" > whisper-cpp-${{ matrix.folder }}.sha256
-            shasum -a 256 stream | sed "s/stream/stream-${{ matrix.folder }}/" > stream-${{ matrix.folder }}.sha256
+            # Upload whisper-cpp
+            BINARY_NAME_W="whisper-cpp"
+            ASSET_NAME_W="whisper-cpp-${{ matrix.folder }}"
+            shasum -a 256 $BINARY_NAME_W | sed "s/$BINARY_NAME_W/$ASSET_NAME_W/" > ${ASSET_NAME_W}.sha256
+            gh release upload ${{ github.event.inputs.release_tag }} ${BINARY_NAME_W}#${ASSET_NAME_W} --clobber
+            gh release upload ${{ github.event.inputs.release_tag }} ${ASSET_NAME_W}.sha256 --clobber
+            # Upload stream
+            BINARY_NAME_S="stream"
+            ASSET_NAME_S="stream-${{ matrix.folder }}"
+            shasum -a 256 $BINARY_NAME_S | sed "s/$BINARY_NAME_S/$ASSET_NAME_S/" > ${ASSET_NAME_S}.sha256
+            gh release upload ${{ github.event.inputs.release_tag }} ${BINARY_NAME_S}#${ASSET_NAME_S} --clobber
+            gh release upload ${{ github.event.inputs.release_tag }} ${ASSET_NAME_S}.sha256 --clobber
           fi
-
-      # 10. Upload checksums
-      - name: Upload whisper-cpp checksum
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.ensure_release.outputs.result }}
-          asset_path: whisper-cpp/${{ matrix.folder }}/whisper-cpp-${{ matrix.folder }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}.sha256
-          asset_name: whisper-cpp-${{ matrix.folder }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}.sha256
-          asset_content_type: text/plain
-
-      - name: Upload stream checksum
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.ensure_release.outputs.result }}
-          asset_path: whisper-cpp/${{ matrix.folder }}/stream-${{ matrix.folder }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}.sha256
-          asset_name: stream-${{ matrix.folder }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}.sha256
-          asset_content_type: text/plain
