@@ -61,7 +61,7 @@ jobs:
               --enable-iconv
             whisper_cmake_opts: ""
             ffmpeg_install_deps: "make mingw-w64-x86_64-gcc mingw-w64-x86_64-yasm mingw-w64-x86_64-nasm mingw-w64-x86_64-pkg-config mingw-w64-x86_64-zlib mingw-w64-x86_64-libiconv"
-            whisper_install_deps: "" # Handled by vcpkg in a later step
+            whisper_install_deps: ""
 
     defaults:
       run:
@@ -71,9 +71,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # --------------------------------------------------------------------
-      # Environment Setup
-      # --------------------------------------------------------------------
       - name: Setup MSYS2 environment (Windows)
         if: runner.os == 'Windows'
         uses: msys2/setup-msys2@v2
@@ -97,9 +94,6 @@ jobs:
           ./vcpkg install sdl2
           cd ..
 
-      # --------------------------------------------------------------------
-      # Build FFmpeg
-      # --------------------------------------------------------------------
       - name: Clone FFmpeg source
         run: git clone --depth 1 --branch "n5.1.4" https://git.ffmpeg.org/ffmpeg.git ffmpeg-src
 
@@ -118,9 +112,6 @@ jobs:
           make -j$(nproc)
           make install
 
-      # --------------------------------------------------------------------
-      # Build whisper.cpp
-      # --------------------------------------------------------------------
       - name: Clone whisper.cpp
         run: git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git whisper.cpp
 
@@ -135,12 +126,8 @@ jobs:
           fi
           cmake --build . --config Release
 
-      # --------------------------------------------------------------------
-      # Transcription Test
-      # --------------------------------------------------------------------
       - name: Prepare for transcription
         run: |
-          # Download the whisper.cpp base English model
           cd whisper.cpp
           bash ./models/download-ggml-model.sh base.en
 
@@ -153,13 +140,11 @@ jobs:
         run: |
           echo "Running transcription on ${{ matrix.os }}"
           cd whisper.cpp
-          # Determine the executable path based on OS
           if [[ "${{ runner.os }}" == "Windows" ]]; then
             EXECUTABLE_PATH="./build/bin/Release/main.exe"
           else
             EXECUTABLE_PATH="./build/bin/main"
           fi
-          # Execute transcription
           TRANSCRIPTION=$($EXECUTABLE_PATH -m models/ggml-base.en.bin -f ../sample_data/audio.wav)
           echo "Transcription output:"
           echo "$TRANSCRIPTION"
