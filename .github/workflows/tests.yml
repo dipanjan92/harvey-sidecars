@@ -1,4 +1,4 @@
-name: Test Multi-Platform Builds
+name: Build, Test, and Transcribe Sidecars
 
 permissions:
   contents: write
@@ -7,49 +7,29 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Tag to build'
+        description: 'A tag for the release, e.g., v1.0.0'
         required: true
   workflow_call:
 
 env:
-  FFMPEG_TAG: "n5.1.4" 
+  FFMPEG_TAG: "n5.1.4"
 
 jobs:
-  ffmpeg:
+  build_and_test_sidecars:
     runs-on: ${{ matrix.os }}
     env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      MATRIX_FOLDER: ${{ matrix.folder }}
       RELEASE_TAG: ${{ github.event.inputs.release_tag }}
+      MATRIX_FOLDER: ${{ matrix.folder }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: macos-14 # For arm64
-            folder: macos-arm64
-            type: build
-            install_deps: |
-              brew install yasm pkg-config nasm # Core build tools for FFmpeg
-            configure_opts: >-
-              --arch=arm64
-              --disable-gpl
-              --disable-libmp3lame
-              --disable-nonfree
-              --disable-ffplay
-              --disable-ffprobe
-              --disable-doc
-              --enable-videotoolbox
-              --enable-zlib
-              --enable-iconv 
-              # --disable-everything and specific enables removed
-              # Rely on FFmpeg's default enabled components, respecting above disables
-
-          - os: macos-13 # For x86_64
+          - os: macos-13 # Intel Mac
             folder: macos-x86_64
-            type: build
-            install_deps: |
-              brew install yasm pkg-config nasm lame # Core build tools for FFmpeg
-            configure_opts: >-
+            install_deps_ffmpeg: "brew install yasm pkg-config nasm lame"
+            install_deps_whisper: "brew install cmake sdl2"
+            configure_opts_ffmpeg: >-
               --arch=x86_64
               --enable-gpl
               --enable-libmp3lame
@@ -60,15 +40,32 @@ jobs:
               --enable-videotoolbox
               --enable-zlib
               --enable-iconv
-              # --disable-everything and specific enables removed
+            cmake_opts_whisper: ""
 
-          - os: windows-latest
+          - os: macos-14 # Apple Silicon
+            folder: macos-arm64
+            install_deps_ffmpeg: "brew install yasm pkg-config nasm"
+            install_deps_whisper: "brew install cmake sdl2"
+            configure_opts_ffmpeg: >-
+              --arch=arm64
+              --disable-gpl
+              --disable-libmp3lame
+              --disable-nonfree
+              --disable-ffplay
+              --disable-ffprobe
+              --disable-doc
+              --enable-videotoolbox
+              --enable-zlib
+              --enable-iconv
+            cmake_opts_whisper: "-DCMAKE_OSX_ARCHITECTURES=arm64"
+
+          - os: windows-latest # Windows
             folder: windows-x86_64
-            type: build
-            # No specific install_deps here for libs like openh264, handled by MSYS2 base + FFmpeg internals
-            configure_opts: >-
+            install_deps_ffmpeg: "make mingw-w64-x86_64-gcc mingw-w64-x86_64-yasm mingw-w64-x86_64-nasm mingw-w64-x86_64-pkg-config mingw-w64-x86_64-zlib mingw-w64-x86_64-libiconv"
+            install_deps_whisper: "" # Handled by vcpkg
+            configure_opts_ffmpeg: >-
               --target-os=win64
-              --disable-asm # Keeping this as it was in your original Windows config
+              --disable-asm
               --disable-gpl
               --disable-nonfree
               --disable-ffplay
@@ -76,7 +73,7 @@ jobs:
               --disable-doc
               --enable-zlib
               --enable-iconv
-              # --disable-everything and specific enables removed
+            cmake_opts_whisper: ""
 
     defaults:
       run:
@@ -85,209 +82,102 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          persist-credentials: true
-          fetch-depth: 0
 
-      - name: Setup MSYS2 environment (Windows)
-        if: matrix.os == 'windows-latest' && matrix.type == 'build'
+      # --------------------------------------------------------------------
+      # Environment Setup
+      # --------------------------------------------------------------------
+      - name: Setup MSYS2 (Windows)
+        if: runner.os == 'Windows'
         uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
           update: true
-          install: >-
-            make
-            mingw-w64-x86_64-gcc
-            mingw-w64-x86_64-yasm
-            mingw-w64-x86_64-nasm
-            mingw-w64-x86_64-pkg-config
-            mingw-w64-x86_64-zlib
-            mingw-w64-x86_64-libiconv
+          install: ${{ matrix.install_deps_ffmpeg }}
 
-      - name: Install build prerequisites (macOS)
-        if: (matrix.os == 'macos-14' || matrix.os == 'macos-13') && matrix.type == 'build'
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
         run: |
-          echo "Installing build dependencies on $RUNNER_OS for ${{ matrix.folder }}..."
-          if [[ -n "${{ matrix.install_deps }}" ]]; then
-            ${{ matrix.install_deps }}
-          else
-            echo "No specific install_deps for this macOS job."
-          fi
+          ${{ matrix.install_deps_ffmpeg }}
+          ${{ matrix.install_deps_whisper }}
 
-      - name: Clone FFmpeg source
-        if: matrix.type == 'build'
+      - name: Install whisper.cpp dependencies (Windows)
+        if: runner.os == 'Windows'
         run: |
-          echo "Cloning FFmpeg source branch/tag: $FFMPEG_TAG for ${{ matrix.folder }}"
-          rm -rf ffmpeg-src # Clean before clone
-          git clone --depth 1 --branch "$FFMPEG_TAG" https://git.ffmpeg.org/ffmpeg.git ffmpeg-src
+          git clone https://github.com/microsoft/vcpkg.git
+          cd vcpkg
+          ./bootstrap-vcpkg.bat
+          ./vcpkg install sdl2
+          cd ..
 
-      - name: Configure & build FFmpeg (Windows)
-        if: matrix.type == 'build' && matrix.os == 'windows-latest'
-        shell: msys2 {0}
+      # --------------------------------------------------------------------
+      # Build FFmpeg from source
+      # --------------------------------------------------------------------
+      - name: Clone FFmpeg
+        run: git clone --depth 1 --branch "$FFMPEG_TAG" https://git.ffmpeg.org/ffmpeg.git ffmpeg-src
+
+      - name: Configure and Build FFmpeg
+        shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash' }}
         run: |
-          echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
-          CPU_COUNT=$(nproc)
-          echo "Using $CPU_COUNT cores for make"
-
-          INSTALL_PREFIX="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
-          mkdir -p "${INSTALL_PREFIX}"
           cd ffmpeg-src
-          echo "Current directory: $(pwd)"
-
-
+          INSTALL_PREFIX="${{ github.workspace }}/ffmpeg-install"
           BASE_CONFIGURE_FLAGS=(
             --prefix="${INSTALL_PREFIX}"
             --disable-shared
             --enable-static
             --pkg-config-flags="--static"
           )
-
-          echo "Running configure with matrix opts: ${{ matrix.configure_opts }}"
-          echo "and base script opts: ${BASE_CONFIGURE_FLAGS[@]}"
-
           if [[ "${{ matrix.folder }}" == "macos-x86_64" ]]; then
-            LDFLAGS="-L$(brew --prefix lame)/lib"
-            CPPFLAGS="-I$(brew --prefix lame)/include"
-            ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }} --extra-ldflags="$LDFLAGS" --extra-cflags="$CPPFLAGS"
+            LDFLAGS="-L$(brew --prefix lame)/lib" CFLAGS="-I$(brew --prefix lame)/include" ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts_ffmpeg }}
           else
-            ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }}
+            ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts_ffmpeg }}
           fi
-
-          make -j${CPU_COUNT}
+          make -j$(nproc 2>/dev/null || sysctl -n hw.logicalcpu)
           make install
-          cd ..
 
-      - name: Configure & build FFmpeg (Windows)
-        if: matrix.type == 'build' && matrix.os == 'windows-latest'
-        shell: msys2 {0}
+      # --------------------------------------------------------------------
+      # Build whisper.cpp from source
+      # --------------------------------------------------------------------
+      - name: Clone whisper.cpp
+        run: git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git whisper.cpp
+
+      - name: Build whisper.cpp
         run: |
-          echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
-          CPU_COUNT=$(nproc)
-          echo "Using $CPU_COUNT cores for make"
-
-          INSTALL_PREFIX="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
-          mkdir -p "${INSTALL_PREFIX}"
-          cd ffmpeg-src
-          echo "Current directory: $(pwd)"
-
-          BASE_CONFIGURE_FLAGS=(
-            --prefix="${INSTALL_PREFIX}"
-            --disable-shared
-            --enable-static
-            --pkg-config-flags="--static"
-          )
-
-          echo "Running configure with matrix opts: ${{ matrix.configure_opts }}"
-          echo "and base script opts: ${BASE_CONFIGURE_FLAGS[@]}"
-
-          # Add logic to correctly link libmp3lame on Intel Macs
-          if [[ "${{ matrix.folder }}" == "macos-x86_64" ]]; then
-            LDFLAGS="-L$(brew --prefix lame)/lib"
-            CPPFLAGS="-I$(brew --prefix lame)/include"
-            ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }} --extra-ldflags="$LDFLAGS" --extra-cflags="$CPPFLAGS"
+          mkdir -p whisper.cpp/build
+          cd whisper.cpp/build
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON -DCMAKE_TOOLCHAIN_FILE=../../vcpkg/scripts/buildsystems/vcpkg.cmake ${{ matrix.cmake_opts_whisper }}
           else
-            ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }}
+            cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON ${{ matrix.cmake_opts_whisper }}
           fi
-          
-          make -j${CPU_COUNT}
-          make install
-          cd ..
+          cmake --build . --config Release
 
-      - name: Configure & build FFmpeg (macOS)
-        if: matrix.type == 'build' && (matrix.os == 'macos-14' || matrix.os == 'macos-13')
-        shell: bash
+      # --------------------------------------------------------------------
+      # Transcription Test
+      # --------------------------------------------------------------------
+      - name: Prepare Audio and Model
         run: |
-          echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
-          CPU_COUNT=$(sysctl -n hw.logicalcpu)
-          echo "Using $CPU_COUNT cores for make"
-          
-          INSTALL_PREFIX="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
-          mkdir -p "${INSTALL_PREFIX}"
-          cd ffmpeg-src
-          echo "Current directory: $(pwd)"
-          
-          BASE_CONFIGURE_FLAGS=(
-            --prefix="${INSTALL_PREFIX}"
-            --disable-shared
-            --enable-static
-            --pkg-config-flags="--static"
-          )
-          
-          echo "Running configure with matrix opts: ${{ matrix.configure_opts }}"
-          echo "and base script opts: ${BASE_CONFIGURE_FLAGS[@]}"
+          mkdir -p sample_data
+          # This will download the sample JFK speech for the test
+          curl -L -o sample_data/audio.mp3 "https://github.com/ggerganov/whisper.cpp/raw/master/samples/jfk.wav"
+          cd whisper.cpp
+          ./models/download-ggml-model.sh base.en
 
-          ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }}
-          
-          make -j${CPU_COUNT}
-          make install
-          cd ..
-
-      - name: Trim Build (Windows)
-        if: matrix.type == 'build' && matrix.folder == 'windows-x86_64'
-        shell: msys2 {0}
+      - name: Convert Audio to WAV with built FFmpeg
         run: |
-          echo "Trimming build for ${{ matrix.folder }} on ${{ matrix.os }}"
-          INSTALL_DIR="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
-          FINAL_EXE_NAME="ffmpeg.exe"
-          echo "Looking for ffmpeg executable in ${INSTALL_DIR}/bin/"
-          ls -l "${INSTALL_DIR}/bin/"
-          if [[ -f "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}" ]]; then
-            strip "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}"
-            mv "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}" "${INSTALL_DIR}/${FINAL_EXE_NAME}"
-            echo "Moved and stripped ${FINAL_EXE_NAME} to ${INSTALL_DIR}/"
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            FFMPEG_EXE="${{ github.workspace }}/ffmpeg-install/bin/ffmpeg.exe"
           else
-            echo "Error: ${FINAL_EXE_NAME} not found in ${INSTALL_DIR}/bin/"
-            find "${INSTALL_DIR}" -name ${FINAL_EXE_NAME} -print
-            exit 1
+            FFMPEG_EXE="${{ github.workspace }}/ffmpeg-install/bin/ffmpeg"
           fi
-          echo "Removing bin, include, lib, share directories from ${INSTALL_DIR}"
-          rm -rf "${INSTALL_DIR}/bin" "${INSTALL_DIR}/include" "${INSTALL_DIR}/lib" "${INSTALL_DIR}/share" "${INSTALL_DIR}/doc"
-          echo "Contents of ${INSTALL_DIR} after trim:"
-          ls -R "${INSTALL_DIR}"
+          "$FFMPEG_EXE" -i sample_data/audio.mp3 -ar 16000 -ac 1 -c:a pcm_s16le sample_data/audio.wav
 
-      - name: Trim Build (macOS arm64)
-        if: matrix.type == 'build' && matrix.folder == 'macos-arm64'
+      - name: Transcribe with built whisper.cpp
         run: |
-          echo "Trimming build for ${{ matrix.folder }} on ${{ matrix.os }}"
-          INSTALL_DIR="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
-          FINAL_EXE_NAME="ffmpeg"
-          echo "Looking for ffmpeg executable in ${INSTALL_DIR}/bin/"
-          ls -l "${INSTALL_DIR}/bin/"
-          if [[ -f "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}" ]]; then
-            strip "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}"
-            mv "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}" "${INSTALL_DIR}/${FINAL_EXE_NAME}"
-            chmod +x "${INSTALL_DIR}/${FINAL_EXE_NAME}" # Explicitly ensure executable
-            echo "Moved, stripped, and ensured executable ${FINAL_EXE_NAME} to ${INSTALL_DIR}/"
+          echo "--- Transcribing on ${{ matrix.os }} ---"
+          cd whisper.cpp
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            WHISPER_EXE="./build/bin/Release/main.exe"
           else
-            echo "Error: ${FINAL_EXE_NAME} not found in ${INSTALL_DIR}/bin/"
-            find "${INSTALL_DIR}" -name ${FINAL_EXE_NAME} -print
-            exit 1
+            WHISPER_EXE="./build/bin/main"
           fi
-          echo "Removing bin, include, lib, share directories from ${INSTALL_DIR}"
-          rm -rf "${INSTALL_DIR}/bin" "${INSTALL_DIR}/include" "${INSTALL_DIR}/lib" "${INSTALL_DIR}/share" "${INSTALL_DIR}/doc"
-          echo "Contents of ${INSTALL_DIR} after trim:"
-          ls -R "${INSTALL_DIR}"
-
-      - name: Trim Build (macOS x86_64)
-        if: matrix.type == 'build' && matrix.folder == 'macos-x86_64'
-        run: |
-          echo "Trimming build for ${{ matrix.folder }} on ${{ matrix.os }}"
-          INSTALL_DIR="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
-          FINAL_EXE_NAME="ffmpeg"
-          echo "Looking for ffmpeg executable in ${INSTALL_DIR}/bin/"
-          ls -l "${INSTALL_DIR}/bin/"
-          if [[ -f "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}" ]]; then
-            strip "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}"
-            mv "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}" "${INSTALL_DIR}/${FINAL_EXE_NAME}"
-            chmod +x "${INSTALL_DIR}/${FINAL_EXE_NAME}" # Explicitly ensure executable
-            echo "Moved, stripped, and ensured executable ${FINAL_EXE_NAME} to ${INSTALL_DIR}/"
-          else
-            echo "Error: ${FINAL_EXE_NAME} not found in ${INSTALL_DIR}/bin/"
-            find "${INSTALL_DIR}" -name ${FINAL_EXE_NAME} -print
-            exit 1
-          fi
-          echo "Removing bin, include, lib, share directories from ${INSTALL_DIR}"
-          rm -rf "${INSTALL_DIR}/bin" "${INSTALL_DIR}/include" "${INSTALL_DIR}/lib" "${INSTALL_DIR}/share" "${INSTALL_DIR}/doc"
-          echo "Contents of ${INSTALL_DIR} after trim:"
-          ls -R "${INSTALL_DIR}"
-          
+          "$WHISPER_EXE" -m models/ggml-base.en.bin -f ../sample_data/audio.wav
