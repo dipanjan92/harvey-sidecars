@@ -129,15 +129,14 @@ jobs:
           cmake --build . --config Release
 
       # --- Transcription Test ---
-      - name: Prepare Audio and Model
+      - name: Download Whisper Model
         run: |
-          mkdir -p sample_data
-          curl -L -o sample_data/audio.mp3 "https://github.com/ggerganov/whisper.cpp/raw/master/samples/jfk.wav"
           cd whisper.cpp
           ./models/download-ggml-model.sh base.en
 
-      - name: Convert Audio to WAV with built FFmpeg
+      - name: Convert Local Audio to WAV with built FFmpeg
         run: |
+          # This step now uses the sample_data/audio.mp3 from your repository
           if [[ "${{ runner.os }}" == "Windows" ]]; then
             FFMPEG_EXE="${{ github.workspace }}/ffmpeg-install/bin/ffmpeg.exe"
           else
@@ -149,12 +148,11 @@ jobs:
         run: |
           echo "--- Transcribing on ${{ matrix.os }} ---"
           cd whisper.cpp
-          # ✅ **FIX:** Use the new 'whisper-cli' executable
           if [[ "${{ runner.os }}" == "Windows" ]]; then
             WHISPER_EXE="./build/bin/Release/whisper-cli.exe"
           else
             WHISPER_EXE="./build/bin/whisper-cli"
           fi
           
-          # Use the new executable to run transcription
+          # Transcribes the newly created audio.wav
           "$WHISPER_EXE" -m models/ggml-base.en.bin -f ../sample_data/audio.wav
