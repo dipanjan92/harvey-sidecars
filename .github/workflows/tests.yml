@@ -30,16 +30,8 @@ jobs:
             install_deps_ffmpeg: "brew install yasm pkg-config nasm lame"
             install_deps_whisper: "brew install cmake sdl2"
             configure_opts_ffmpeg: >-
-              --arch=x86_64
-              --enable-gpl
-              --enable-libmp3lame
-              --disable-nonfree
-              --disable-ffplay
-              --disable-ffprobe
-              --disable-doc
-              --enable-videotoolbox
-              --enable-zlib
-              --enable-iconv
+              --arch=x86_64 --enable-gpl --enable-libmp3lame --disable-nonfree --disable-ffplay
+              --disable-ffprobe --disable-doc --enable-videotoolbox --enable-zlib --enable-iconv
             cmake_opts_whisper: ""
 
           - os: macos-14 # Apple Silicon
@@ -47,32 +39,17 @@ jobs:
             install_deps_ffmpeg: "brew install yasm pkg-config nasm"
             install_deps_whisper: "brew install cmake sdl2"
             configure_opts_ffmpeg: >-
-              --arch=arm64
-              --disable-gpl
-              --disable-libmp3lame
-              --disable-nonfree
-              --disable-ffplay
-              --disable-ffprobe
-              --disable-doc
-              --enable-videotoolbox
-              --enable-zlib
-              --enable-iconv
+              --arch=arm64 --disable-gpl --disable-libmp3lame --disable-nonfree --disable-ffplay
+              --disable-ffprobe --disable-doc --enable-videotoolbox --enable-zlib --enable-iconv
             cmake_opts_whisper: "-DCMAKE_OSX_ARCHITECTURES=arm64"
 
           - os: windows-latest # Windows
             folder: windows-x86_64
             install_deps_ffmpeg: "make mingw-w64-x86_64-gcc mingw-w64-x86_64-yasm mingw-w64-x86_64-nasm mingw-w64-x86_64-pkg-config mingw-w64-x86_64-zlib mingw-w64-x86_64-libiconv"
-            install_deps_whisper: "" # Handled by vcpkg
+            install_deps_whisper: ""
             configure_opts_ffmpeg: >-
-              --target-os=win64
-              --disable-asm
-              --disable-gpl
-              --disable-nonfree
-              --disable-ffplay
-              --disable-ffprobe
-              --disable-doc
-              --enable-zlib
-              --enable-iconv
+              --target-os=win64 --disable-asm --disable-gpl --disable-nonfree --disable-ffplay
+              --disable-ffprobe --disable-doc --enable-zlib --enable-iconv
             cmake_opts_whisper: ""
 
     defaults:
@@ -83,9 +60,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # --------------------------------------------------------------------
-      # Environment Setup
-      # --------------------------------------------------------------------
+      # --- Environment Setup ---
       - name: Setup MSYS2 (Windows)
         if: runner.os == 'Windows'
         uses: msys2/setup-msys2@v2
@@ -109,34 +84,36 @@ jobs:
           ./vcpkg install sdl2
           cd ..
 
-      # --------------------------------------------------------------------
-      # Build FFmpeg from source
-      # --------------------------------------------------------------------
+      # --- Build FFmpeg ---
       - name: Clone FFmpeg
         run: git clone --depth 1 --branch "$FFMPEG_TAG" https://git.ffmpeg.org/ffmpeg.git ffmpeg-src
 
-      - name: Configure and Build FFmpeg
-        shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash' }}
+      - name: Configure and Build FFmpeg (macOS)
+        if: runner.os == 'macOS'
         run: |
           cd ffmpeg-src
           INSTALL_PREFIX="${{ github.workspace }}/ffmpeg-install"
-          BASE_CONFIGURE_FLAGS=(
-            --prefix="${INSTALL_PREFIX}"
-            --disable-shared
-            --enable-static
-            --pkg-config-flags="--static"
-          )
+          BASE_CONFIGURE_FLAGS=( --prefix="${INSTALL_PREFIX}" --disable-shared --enable-static --pkg-config-flags="--static" )
           if [[ "${{ matrix.folder }}" == "macos-x86_64" ]]; then
             LDFLAGS="-L$(brew --prefix lame)/lib" CFLAGS="-I$(brew --prefix lame)/include" ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts_ffmpeg }}
           else
             ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts_ffmpeg }}
           fi
-          make -j$(nproc 2>/dev/null || sysctl -n hw.logicalcpu)
+          make -j$(sysctl -n hw.logicalcpu)
           make install
 
-      # --------------------------------------------------------------------
-      # Build whisper.cpp from source
-      # --------------------------------------------------------------------
+      - name: Configure and Build FFmpeg (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          cd ffmpeg-src
+          INSTALL_PREFIX="${{ github.workspace }}/ffmpeg-install"
+          BASE_CONFIGURE_FLAGS=( --prefix="${INSTALL_PREFIX}" --disable-shared --enable-static --pkg-config-flags="--static" )
+          ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts_ffmpeg }}
+          make -j$(nproc)
+          make install
+      
+      # --- Build whisper.cpp ---
       - name: Clone whisper.cpp
         run: git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git whisper.cpp
 
@@ -151,13 +128,10 @@ jobs:
           fi
           cmake --build . --config Release
 
-      # --------------------------------------------------------------------
-      # Transcription Test
-      # --------------------------------------------------------------------
+      # --- Transcription Test ---
       - name: Prepare Audio and Model
         run: |
           mkdir -p sample_data
-          # This will download the sample JFK speech for the test
           curl -L -o sample_data/audio.mp3 "https://github.com/ggerganov/whisper.cpp/raw/master/samples/jfk.wav"
           cd whisper.cpp
           ./models/download-ggml-model.sh base.en
