@@ -1,10 +1,152 @@
 name: Test Sidecars CI
 
+permissions:
+  contents: write
+
 on:
   workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  build-and-test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-13
+            folder: macos-x86_64
+            ffmpeg_configure_opts: >-
+              --arch=x86_64
+              --enable-gpl
+              --enable-libmp3lame
+              --disable-nonfree
+              --disable-ffplay
+              --disable-ffprobe
+              --disable-doc
+              --enable-videotoolbox
+              --enable-zlib
+              --enable-iconv
+            whisper_cmake_opts: ""
+            ffmpeg_install_deps: "brew install yasm pkg-config nasm lame"
+            whisper_install_deps: "brew install cmake sdl2"
+
+          - os: macos-14
+            folder: macos-arm64
+            ffmpeg_configure_opts: >-
+              --arch=arm64
+              --disable-gpl
+              --disable-libmp3lame
+              --disable-nonfree
+              --disable-ffplay
+              --disable-ffprobe
+              --disable-doc
+              --enable-videotoolbox
+              --enable-zlib
+              --enable-iconv
+            whisper_cmake_opts: "-DCMAKE_OSX_ARCHITECTURES=arm64"
+            ffmpeg_install_deps: "brew install yasm pkg-config nasm"
+            whisper_install_deps: "brew install cmake sdl2"
+
+          - os: windows-latest
+            folder: windows-x86_64
+            ffmpeg_configure_opts: >-
+              --target-os=win64
+              --disable-asm
+              --disable-gpl
+              --disable-nonfree
+              --disable-ffplay
+              --disable-ffprobe
+              --disable-doc
+              --enable-zlib
+              --enable-iconv
+            whisper_cmake_opts: ""
+            ffmpeg_install_deps: "make mingw-w64-x86_64-gcc mingw-w64-x86_64-yasm mingw-w64-x86_64-nasm mingw-w64-x86_64-pkg-config mingw-w64-x86_64-zlib mingw-w64-x86_64-libiconv"
+            whisper_install_deps: ""
+
+    defaults:
+      run:
+        shell: bash
+
     steps:
-    - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup MSYS2 environment (Windows)
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: ${{ matrix.ffmpeg_install_deps }}
+
+      - name: Install prerequisites (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          ${{ matrix.ffmpeg_install_deps }}
+          ${{ matrix.whisper_install_deps }}
+
+      - name: Install prerequisites for whisper.cpp (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          git clone https://github.com/microsoft/vcpkg.git
+          cd vcpkg
+          ./bootstrap-vcpkg.bat
+          ./vcpkg install sdl2
+          cd ..
+
+      - name: Clone FFmpeg source
+        run: git clone --depth 1 --branch "n5.1.4" https://git.ffmpeg.org/ffmpeg.git ffmpeg-src
+
+      - name: Configure & build FFmpeg
+        shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash' }}
+        run: |
+          cd ffmpeg-src
+          INSTALL_PREFIX="${{ github.workspace }}/ffmpeg_install"
+          BASE_CONFIGURE_FLAGS=(
+            --prefix="${INSTALL_PREFIX}"
+            --disable-shared
+            --enable-static
+            --pkg-config-flags="--static"
+          )
+          ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.ffmpeg_configure_opts }}
+          make -j$(nproc)
+          make install
+
+      - name: Clone whisper.cpp
+        run: git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git whisper.cpp
+
+      - name: Build whisper-cpp
+        run: |
+          mkdir -p whisper.cpp/build
+          cd whisper.cpp/build
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON -DCMAKE_TOOLCHAIN_FILE=../../vcpkg/scripts/buildsystems/vcpkg.cmake ${{ matrix.whisper_cmake_opts }}
+          else
+            cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON ${{ matrix.whisper_cmake_opts }}
+          fi
+          cmake --build . --config Release
+
+      - name: Prepare for transcription
+        run: |
+          cd whisper.cpp
+          bash ./models/download-ggml-model.sh base.en
+
+      - name: Convert audio to WAV
+        run: |
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            FFMPEG_BIN="${{ github.workspace }}/ffmpeg_install/bin/ffmpeg.exe"
+          else
+            FFMPEG_BIN="${{ github.workspace }}/ffmpeg_install/bin/ffmpeg"
+          fi
+          "$FFMPEG_BIN" -i sample_data/audio.mp3 -ar 16000 -ac 1 -c:a pcm_s16le sample_data/audio.wav
+
+      - name: Run transcription
+        run: |
+          echo "Running transcription on ${{ matrix.os }}"
+          cd whisper.cpp
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            EXECUTABLE_PATH="./build/bin/Release/main.exe"
+          else
+            EXECUTABLE_PATH="./build/bin/main"
+          fi
+          "$EXECUTABLE_PATH" -m models/ggml-base.en.bin -f ../sample_data/audio.wav
