@@ -1,10 +1,11 @@
 name: Test Sidecars CI
 
-permissions:
-  contents: write
-
+# Corrected: 'on' and 'permissions' should be at the root level
 on:
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build-and-test:
@@ -128,23 +129,35 @@ jobs:
 
       - name: Prepare for transcription
         run: |
+          # Use a known good audio file for testing
+          mkdir -p sample_data
+          curl -L -o sample_data/audio.mp3 "https://github.com/ggerganov/whisper.cpp/raw/master/samples/jfk.wav"
+
+          # Download the model
           cd whisper.cpp
           bash ./models/download-ggml-model.sh base.en
 
       - name: Convert audio to WAV
         run: |
-          FFMPEG_BIN="${{ github.workspace }}/ffmpeg_install/bin/ffmpeg"
-          $FFMPEG_BIN -i sample_data/audio.mp3 -ar 16000 -ac 1 -c:a pcm_s16le sample_data/audio.wav
+          # Improved: Correctly handle executable path for Windows
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            FFMPEG_BIN="${{ github.workspace }}/ffmpeg_install/bin/ffmpeg.exe"
+          else
+            FFMPEG_BIN="${{ github.workspace }}/ffmpeg_install/bin/ffmpeg"
+          fi
+
+          "$FFMPEG_BIN" -i sample_data/audio.mp3 -ar 16000 -ac 1 -c:a pcm_s16le sample_data/audio.wav
 
       - name: Run transcription
         run: |
           echo "Running transcription on ${{ matrix.os }}"
           cd whisper.cpp
+
           if [[ "${{ runner.os }}" == "Windows" ]]; then
             EXECUTABLE_PATH="./build/bin/Release/main.exe"
           else
             EXECUTABLE_PATH="./build/bin/main"
           fi
-          TRANSCRIPTION=$($EXECUTABLE_PATH -m models/ggml-base.en.bin -f ../sample_data/audio.wav)
-          echo "Transcription output:"
-          echo "$TRANSCRIPTION"
+
+          # Capture and print the transcription output
+          "$EXECUTABLE_PATH" -m models/ggml-base.en.bin -f ../sample_data/audio.wav
