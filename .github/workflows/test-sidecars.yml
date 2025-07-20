@@ -137,12 +137,14 @@ jobs:
       # --------------------------------------------------------------------
       - name: Prepare for transcription
         run: |
-          mkdir -p sample_data
-          # Download a sample audio file
-          curl -L -o sample_data/audio.mp3 "https://github.com/ggerganov/whisper.cpp/raw/master/samples/jfk.wav"
           # Download the whisper.cpp base English model
           cd whisper.cpp
           bash ./models/download-ggml-model.sh base.en
+
+      - name: Convert audio to WAV
+        run: |
+          FFMPEG_BIN="${{ github.workspace }}/ffmpeg_install/bin/ffmpeg"
+          $FFMPEG_BIN -i sample_data/audio.mp3 -ar 16000 -ac 1 -c:a pcm_s16le sample_data/audio.wav
 
       - name: Run transcription
         run: |
@@ -155,4 +157,6 @@ jobs:
             EXECUTABLE_PATH="./build/bin/main"
           fi
           # Execute transcription
-          $EXECUTABLE_PATH -m models/ggml-base.en.bin -f ../sample_data/audio.mp3
+          TRANSCRIPTION=$($EXECUTABLE_PATH -m models/ggml-base.en.bin -f ../sample_data/audio.wav)
+          echo "Transcription output:"
+          echo "$TRANSCRIPTION"
