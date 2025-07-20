@@ -149,9 +149,12 @@ jobs:
         run: |
           echo "--- Transcribing on ${{ matrix.os }} ---"
           cd whisper.cpp
+          # ✅ **FIX:** Use the new 'whisper-cli' executable
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            WHISPER_EXE="./build/bin/Release/main.exe"
+            WHISPER_EXE="./build/bin/Release/whisper-cli.exe"
           else
-            WHISPER_EXE="./build/bin/main"
+            WHISPER_EXE="./build/bin/whisper-cli"
           fi
+          
+          # Use the new executable to run transcription
           "$WHISPER_EXE" -m models/ggml-base.en.bin -f ../sample_data/audio.wav
