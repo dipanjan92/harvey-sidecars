@@ -174,13 +174,20 @@ jobs:
             --prefix="${INSTALL_PREFIX}"
             --disable-shared
             --enable-static
-            --pkg-config-flags="--static" 
+            --pkg-config-flags="--static"
           )
-          
+
           echo "Running configure with matrix opts: ${{ matrix.configure_opts }}"
           echo "and base script opts: ${BASE_CONFIGURE_FLAGS[@]}"
 
-          ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }}
+          # Add logic to correctly link libmp3lame on Intel Macs
+          if [[ "${{ matrix.folder }}" == "macos-x86_64" ]]; then
+            LDFLAGS="-L$(brew --prefix lame)/lib"
+            CPPFLAGS="-I$(brew --prefix lame)/include"
+            ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }} --extra-ldflags="$LDFLAGS" --extra-cflags="$CPPFLAGS"
+          else
+            ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }}
+          fi
           
           make -j${CPU_COUNT}
           make install
@@ -327,34 +334,21 @@ jobs:
               }
             }
 
-      - name: Upload FFmpeg asset
-        uses: actions/upload-release-asset@v1
+      - name: Upload assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.ensure_release.outputs.result }}
-          asset_path: ffmpeg/${{ matrix.folder }}/ffmpeg${{ matrix.os == 'windows-latest' && '.exe' || '' }}
-          asset_name: ffmpeg-${{ matrix.folder }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}
-          asset_content_type: application/octet-stream
-
-      - name: Calculate and upload checksum
         run: |
           cd ffmpeg/${{ matrix.folder }}
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
             BINARY_NAME="ffmpeg.exe"
             ASSET_NAME="ffmpeg-${{ matrix.folder }}.exe"
             sha256sum $BINARY_NAME | sed "s/$BINARY_NAME/$ASSET_NAME/" > ${ASSET_NAME}.sha256
+            gh release upload ${{ github.event.inputs.release_tag }} ${BINARY_NAME}#${ASSET_NAME} --clobber
+            gh release upload ${{ github.event.inputs.release_tag }} ${ASSET_NAME}.sha256 --clobber
           else
             BINARY_NAME="ffmpeg"
             ASSET_NAME="ffmpeg-${{ matrix.folder }}"
             shasum -a 256 $BINARY_NAME | sed "s/$BINARY_NAME/$ASSET_NAME/" > ${ASSET_NAME}.sha256
+            gh release upload ${{ github.event.inputs.release_tag }} ${BINARY_NAME}#${ASSET_NAME} --clobber
+            gh release upload ${{ github.event.inputs.release_tag }} ${ASSET_NAME}.sha256 --clobber
           fi
-      - name: Upload checksum
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.ensure_release.outputs.result }}
-          asset_path: ffmpeg/${{ matrix.folder }}/ffmpeg-${{ matrix.folder }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}.sha256
-          asset_name: ffmpeg-${{ matrix.folder }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}.sha256
-          asset_content_type: text/plain
