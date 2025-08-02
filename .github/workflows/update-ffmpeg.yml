@@ -136,14 +136,9 @@ jobs:
           
           echo "Running configure with matrix opts: ${{ matrix.configure_opts }}"
           
-          # Add logic to correctly link libmp3lame on Intel Macs
-          if [[ "${{ matrix.folder }}" == "macos-x86_64" ]]; then
-            LDFLAGS="-L$(brew --prefix lame)/lib"
-            CPPFLAGS="-I$(brew --prefix lame)/include"
-            ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }} --extra-ldflags="$LDFLAGS" --extra-cflags="$CPPFLAGS"
-          else
-            ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }}
-          fi
+          # By removing the explicit LDFLAGS and CPPFLAGS, we rely on pkg-config to find
+          # the static libraries correctly, which is what --pkg-config-flags="--static" is for.
+          ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }}
           
           make -j${CPU_COUNT}
           make install
