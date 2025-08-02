@@ -108,18 +108,21 @@ jobs:
           cmake --build . --config Release
 
       - name: Prepare assets for release
+        id: prepare_assets
         run: |
           mkdir -p release_assets
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            cp whisper.cpp/build/bin/Release/main.exe release_assets/whisper-cli.exe
-            cp whisper.cpp/build/bin/Release/stream.exe release_assets/whisper-stream.exe
+            # Corrected to copy the new executable names for Windows
+            cp whisper.cpp/build/bin/Release/whisper-cli.exe release_assets/whisper-cli.exe
+            cp whisper.cpp/build/bin/Release/whisper-stream.exe release_assets/whisper-stream.exe
             cp vcpkg/installed/x64-windows/bin/SDL2.dll release_assets/SDL2.dll
           else
-            cp whisper.cpp/build/bin/main release_assets/whisper-cli
-            cp whisper.cpp/build/bin/stream release_assets/whisper-stream
+            # Corrected to copy the new executable names for macOS
+            cp whisper.cpp/build/bin/whisper-cli release_assets/whisper-cli
+            cp whisper.cpp/build/bin/whisper-stream release_assets/whisper-stream
           fi
           echo "--- Prepared assets ---"
-          ls -l release_assets
+          ls -lh release_assets
 
       - name: Rename, checksum, and upload assets
         env:
