@@ -29,7 +29,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Download Binaries
+      - name: Download and Prepare Binaries
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -40,33 +40,37 @@ jobs:
             EXT=".exe"
           fi
 
-          # Define the asset names based on the matrix
+          # Define the original asset names and the new name for the whisper executable
           FFMPEG_ASSET="ffmpeg-${{ matrix.arch }}${EXT}"
-          WHISPER_ASSET="whisper-cpp-${{ matrix.arch }}${EXT}"
-          
-          echo "Downloading ${FFMPEG_ASSET} and ${WHISPER_ASSET}..."
+          WHISPER_ASSET_ORIGINAL="whisper-cpp-${{ matrix.arch }}${EXT}"
+          WHISPER_ASSET_RENAMED="whisper${EXT}"
 
-          # Download the main binaries
-          gh release download ${{ env.RELEASE_TAG }} --pattern "${FFMPEG_ASSET}" --pattern "${WHISPER_ASSET}" --clobber
+          echo "Downloading ${FFMPEG_ASSET} and ${WHISPER_ASSET_ORIGINAL}..."
+
+          # Download the main binaries from the release
+          gh release download ${{ env.RELEASE_TAG }} --pattern "${FFMPEG_ASSET}" --pattern "${WHISPER_ASSET_ORIGINAL}" --clobber
           
           # Download SDL2.dll for Windows
           if [[ "${{ runner.os }}" == "Windows" ]]; then
             gh release download ${{ env.RELEASE_TAG }} --pattern "SDL2.dll" --clobber
           fi
           
+          # --- FIX: Rename the whisper executable to its new expected name ---
+          echo "Renaming ${WHISPER_ASSET_ORIGINAL} to ${WHISPER_ASSET_RENAMED} to avoid deprecation error."
+          mv "${WHISPER_ASSET_ORIGINAL}" "${WHISPER_ASSET_RENAMED}"
+
           # Make the binaries executable on non-Windows runners
           if [[ "${{ runner.os }}" != "Windows" ]]; then
             chmod +x "${FFMPEG_ASSET}"
-            chmod +x "${WHISPER_ASSET}"
+            chmod +x "${WHISPER_ASSET_RENAMED}"
           fi
 
-          echo "--- Downloaded Files ---"
+          echo "--- Prepared Files ---"
           ls -la
 
       - name: Download Whisper Model
         run: |
           echo "Downloading ggml-base.en.bin model..."
-          # The download script from whisper.cpp just curls this URL
           curl -L -o ggml-base.en.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin
 
       - name: Convert Audio to WAV with FFmpeg
@@ -86,7 +90,8 @@ jobs:
           if [[ "${{ runner.os }}" == "Windows" ]]; then
             EXT=".exe"
           fi
-          WHISPER_EXE="./whisper-cpp-${{ matrix.arch }}${EXT}"
+          # Use the new, renamed executable
+          WHISPER_EXE="./whisper${EXT}"
           
           echo "--- Transcribing on ${{ matrix.os }} using ${WHISPER_EXE} ---"
           "$WHISPER_EXE" -m ggml-base.en.bin -f audio.wav
