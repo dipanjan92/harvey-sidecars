@@ -43,7 +43,7 @@ jobs:
           # Define the original asset names and the new name for the whisper executable
           FFMPEG_ASSET="ffmpeg-${{ matrix.arch }}${EXT}"
           WHISPER_ASSET_ORIGINAL="whisper-cpp-${{ matrix.arch }}${EXT}"
-          WHISPER_ASSET_RENAMED="whisper${EXT}"
+          WHISPER_ASSET_RENAMED="whisper-cli${EXT}"
 
           echo "Downloading ${FFMPEG_ASSET} and ${WHISPER_ASSET_ORIGINAL}..."
 
@@ -91,7 +91,7 @@ jobs:
             EXT=".exe"
           fi
           # Use the new, renamed executable
-          WHISPER_EXE="./whisper${EXT}"
+          WHISPER_EXE="./whisper-cli${EXT}"
           
           echo "--- Transcribing on ${{ matrix.os }} using ${WHISPER_EXE} ---"
           "$WHISPER_EXE" -m ggml-base.en.bin -f audio.wav
