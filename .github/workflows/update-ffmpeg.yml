@@ -12,7 +12,7 @@ on:
   workflow_call:
 
 env:
-  FFMPEG_TAG: "n5.1.4" 
+  FFMPEG_TAG: "n5.1.4"
 
 jobs:
   ffmpeg:
@@ -40,9 +40,7 @@ jobs:
               --disable-doc
               --enable-videotoolbox
               --enable-zlib
-              --enable-iconv 
-              # --disable-everything and specific enables removed
-              # Rely on FFmpeg's default enabled components, respecting above disables
+              --enable-iconv
 
           - os: macos-13 # For x86_64
             folder: macos-x86_64
@@ -60,15 +58,13 @@ jobs:
               --enable-videotoolbox
               --enable-zlib
               --enable-iconv
-              # --disable-everything and specific enables removed
 
           - os: windows-latest
             folder: windows-x86_64
             type: build
-            # No specific install_deps here for libs like openh264, handled by MSYS2 base + FFmpeg internals
             configure_opts: >-
               --target-os=win64
-              --disable-asm # Keeping this as it was in your original Windows config
+              --disable-asm
               --disable-gpl
               --disable-nonfree
               --disable-ffplay
@@ -76,7 +72,6 @@ jobs:
               --disable-doc
               --enable-zlib
               --enable-iconv
-              # --disable-everything and specific enables removed
 
     defaults:
       run:
@@ -90,7 +85,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup MSYS2 environment (Windows)
-        if: matrix.os == 'windows-latest' && matrix.type == 'build'
+        if: runner.os == 'Windows' && matrix.type == 'build'
         uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
@@ -105,7 +100,7 @@ jobs:
             mingw-w64-x86_64-libiconv
 
       - name: Install build prerequisites (macOS)
-        if: (matrix.os == 'macos-14' || matrix.os == 'macos-13') && matrix.type == 'build'
+        if: runner.os == 'macOS' && matrix.type == 'build'
         run: |
           echo "Installing build dependencies on $RUNNER_OS for ${{ matrix.folder }}..."
           if [[ -n "${{ matrix.install_deps }}" ]]; then
@@ -121,65 +116,26 @@ jobs:
           rm -rf ffmpeg-src # Clean before clone
           git clone --depth 1 --branch "$FFMPEG_TAG" https://git.ffmpeg.org/ffmpeg.git ffmpeg-src
 
-      - name: Configure & build FFmpeg (Windows)
-        if: matrix.type == 'build' && matrix.os == 'windows-latest'
-        shell: msys2 {0}
+      - name: Configure & build FFmpeg (macOS)
+        if: matrix.type == 'build' && runner.os == 'macOS'
         run: |
           echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
-          CPU_COUNT=$(nproc)
+          CPU_COUNT=$(sysctl -n hw.logicalcpu)
           echo "Using $CPU_COUNT cores for make"
-
+          
           INSTALL_PREFIX="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
           mkdir -p "${INSTALL_PREFIX}"
           cd ffmpeg-src
-          echo "Current directory: $(pwd)"
-
-
+          
           BASE_CONFIGURE_FLAGS=(
             --prefix="${INSTALL_PREFIX}"
             --disable-shared
             --enable-static
             --pkg-config-flags="--static"
           )
-
+          
           echo "Running configure with matrix opts: ${{ matrix.configure_opts }}"
-          echo "and base script opts: ${BASE_CONFIGURE_FLAGS[@]}"
-
-          if [[ "${{ matrix.folder }}" == "macos-x86_64" ]]; then
-            LDFLAGS="-L$(brew --prefix lame)/lib"
-            CPPFLAGS="-I$(brew --prefix lame)/include"
-            ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }} --extra-ldflags="$LDFLAGS" --extra-cflags="$CPPFLAGS"
-          else
-            ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }}
-          fi
-
-          make -j${CPU_COUNT}
-          make install
-          cd ..
-
-      - name: Configure & build FFmpeg (Windows)
-        if: matrix.type == 'build' && matrix.os == 'windows-latest'
-        shell: msys2 {0}
-        run: |
-          echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
-          CPU_COUNT=$(nproc)
-          echo "Using $CPU_COUNT cores for make"
-
-          INSTALL_PREFIX="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
-          mkdir -p "${INSTALL_PREFIX}"
-          cd ffmpeg-src
-          echo "Current directory: $(pwd)"
-
-          BASE_CONFIGURE_FLAGS=(
-            --prefix="${INSTALL_PREFIX}"
-            --disable-shared
-            --enable-static
-            --pkg-config-flags="--static"
-          )
-
-          echo "Running configure with matrix opts: ${{ matrix.configure_opts }}"
-          echo "and base script opts: ${BASE_CONFIGURE_FLAGS[@]}"
-
+          
           # Add logic to correctly link libmp3lame on Intel Macs
           if [[ "${{ matrix.folder }}" == "macos-x86_64" ]]; then
             LDFLAGS="-L$(brew --prefix lame)/lib"
@@ -193,110 +149,66 @@ jobs:
           make install
           cd ..
 
-      - name: Configure & build FFmpeg (macOS)
-        if: matrix.type == 'build' && (matrix.os == 'macos-14' || matrix.os == 'macos-13')
-        shell: bash
+      - name: Configure & build FFmpeg (Windows)
+        if: matrix.type == 'build' && runner.os == 'Windows'
+        shell: msys2 {0}
         run: |
           echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
-          CPU_COUNT=$(sysctl -n hw.logicalcpu)
+          CPU_COUNT=$(nproc)
           echo "Using $CPU_COUNT cores for make"
-          
+
           INSTALL_PREFIX="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
           mkdir -p "${INSTALL_PREFIX}"
           cd ffmpeg-src
-          echo "Current directory: $(pwd)"
-          
+
           BASE_CONFIGURE_FLAGS=(
             --prefix="${INSTALL_PREFIX}"
             --disable-shared
             --enable-static
             --pkg-config-flags="--static"
           )
-          
-          echo "Running configure with matrix opts: ${{ matrix.configure_opts }}"
-          echo "and base script opts: ${BASE_CONFIGURE_FLAGS[@]}"
 
+          echo "Running configure with matrix opts: ${{ matrix.configure_opts }}"
           ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }}
           
           make -j${CPU_COUNT}
           make install
           cd ..
 
-      - name: Trim Build (Windows)
-        if: matrix.type == 'build' && matrix.folder == 'windows-x86_64'
-        shell: msys2 {0}
+      - name: Trim Build and Rename
+        if: matrix.type == 'build'
         run: |
           echo "Trimming build for ${{ matrix.folder }} on ${{ matrix.os }}"
           INSTALL_DIR="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
-          FINAL_EXE_NAME="ffmpeg.exe"
-          echo "Looking for ffmpeg executable in ${INSTALL_DIR}/bin/"
-          ls -l "${INSTALL_DIR}/bin/"
-          if [[ -f "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}" ]]; then
-            strip "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}"
-            mv "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}" "${INSTALL_DIR}/${FINAL_EXE_NAME}"
-            echo "Moved and stripped ${FINAL_EXE_NAME} to ${INSTALL_DIR}/"
+          
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            SRC_EXE_NAME="ffmpeg.exe"
+            FINAL_EXE_NAME="ffmpeg-${{ matrix.folder }}.exe"
           else
-            echo "Error: ${FINAL_EXE_NAME} not found in ${INSTALL_DIR}/bin/"
-            find "${INSTALL_DIR}" -name ${FINAL_EXE_NAME} -print
-            exit 1
+            SRC_EXE_NAME="ffmpeg"
+            FINAL_EXE_NAME="ffmpeg-${{ matrix.folder }}"
           fi
-          echo "Removing bin, include, lib, share directories from ${INSTALL_DIR}"
-          rm -rf "${INSTALL_DIR}/bin" "${INSTALL_DIR}/include" "${INSTALL_DIR}/lib" "${INSTALL_DIR}/share" "${INSTALL_DIR}/doc"
-          echo "Contents of ${INSTALL_DIR} after trim:"
-          ls -R "${INSTALL_DIR}"
 
-      - name: Trim Build (macOS arm64)
-        if: matrix.type == 'build' && matrix.folder == 'macos-arm64'
-        run: |
-          echo "Trimming build for ${{ matrix.folder }} on ${{ matrix.os }}"
-          INSTALL_DIR="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
-          FINAL_EXE_NAME="ffmpeg"
           echo "Looking for ffmpeg executable in ${INSTALL_DIR}/bin/"
           ls -l "${INSTALL_DIR}/bin/"
-          if [[ -f "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}" ]]; then
-            strip "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}"
-            mv "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}" "${INSTALL_DIR}/${FINAL_EXE_NAME}"
-            chmod +x "${INSTALL_DIR}/${FINAL_EXE_NAME}" # Explicitly ensure executable
-            echo "Moved, stripped, and ensured executable ${FINAL_EXE_NAME} to ${INSTALL_DIR}/"
-          else
-            echo "Error: ${FINAL_EXE_NAME} not found in ${INSTALL_DIR}/bin/"
-            find "${INSTALL_DIR}" -name ${FINAL_EXE_NAME} -print
-            exit 1
-          fi
-          echo "Removing bin, include, lib, share directories from ${INSTALL_DIR}"
-          rm -rf "${INSTALL_DIR}/bin" "${INSTALL_DIR}/include" "${INSTALL_DIR}/lib" "${INSTALL_DIR}/share" "${INSTALL_DIR}/doc"
-          echo "Contents of ${INSTALL_DIR} after trim:"
-          ls -R "${INSTALL_DIR}"
 
-      - name: Trim Build (macOS x86_64)
-        if: matrix.type == 'build' && matrix.folder == 'macos-x86_64'
-        run: |
-          echo "Trimming build for ${{ matrix.folder }} on ${{ matrix.os }}"
-          INSTALL_DIR="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
-          FINAL_EXE_NAME="ffmpeg"
-          echo "Looking for ffmpeg executable in ${INSTALL_DIR}/bin/"
-          ls -l "${INSTALL_DIR}/bin/"
-          if [[ -f "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}" ]]; then
-            strip "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}"
-            mv "${INSTALL_DIR}/bin/${FINAL_EXE_NAME}" "${INSTALL_DIR}/${FINAL_EXE_NAME}"
-            chmod +x "${INSTALL_DIR}/${FINAL_EXE_NAME}" # Explicitly ensure executable
-            echo "Moved, stripped, and ensured executable ${FINAL_EXE_NAME} to ${INSTALL_DIR}/"
+          if [[ -f "${INSTALL_DIR}/bin/${SRC_EXE_NAME}" ]]; then
+            strip "${INSTALL_DIR}/bin/${SRC_EXE_NAME}"
+            mv "${INSTALL_DIR}/bin/${SRC_EXE_NAME}" "${INSTALL_DIR}/${FINAL_EXE_NAME}"
+            if [[ "${{ runner.os }}" != "Windows" ]]; then
+              chmod +x "${INSTALL_DIR}/${FINAL_EXE_NAME}"
+            fi
+            echo "Moved, stripped, and renamed binary to ${FINAL_EXE_NAME} in ${INSTALL_DIR}/"
           else
-            echo "Error: ${FINAL_EXE_NAME} not found in ${INSTALL_DIR}/bin/"
-            find "${INSTALL_DIR}" -name ${FINAL_EXE_NAME} -print
+            echo "Error: ${SRC_EXE_NAME} not found in ${INSTALL_DIR}/bin/"
+            find "${INSTALL_DIR}" -name "${SRC_EXE_NAME}" -print
             exit 1
           fi
+
           echo "Removing bin, include, lib, share directories from ${INSTALL_DIR}"
           rm -rf "${INSTALL_DIR}/bin" "${INSTALL_DIR}/include" "${INSTALL_DIR}/lib" "${INSTALL_DIR}/share" "${INSTALL_DIR}/doc"
           echo "Contents of ${INSTALL_DIR} after trim:"
           ls -R "${INSTALL_DIR}"
-      
-      - name: Download prebuilt FFmpeg for ${{ matrix.folder }}
-        if: matrix.type == 'download' 
-        run: |
-          # This section is currently not used by the matrix
-          echo "Matrix type is not 'download', skipping prebuilt download."
-          # ... (original download script can remain here if you plan to use it later) ...
 
       - name: Ensure GitHub release
         id: ensure_release
@@ -339,16 +251,21 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cd ffmpeg/${{ matrix.folder }}
-          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            BINARY_NAME="ffmpeg.exe"
+          
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
             ASSET_NAME="ffmpeg-${{ matrix.folder }}.exe"
-            sha256sum $BINARY_NAME | sed "s/$BINARY_NAME/$ASSET_NAME/" > ${ASSET_NAME}.sha256
-            gh release upload ${{ github.event.inputs.release_tag }} ${BINARY_NAME}#${ASSET_NAME} --clobber
-            gh release upload ${{ github.event.inputs.release_tag }} ${ASSET_NAME}.sha256 --clobber
           else
-            BINARY_NAME="ffmpeg"
             ASSET_NAME="ffmpeg-${{ matrix.folder }}"
-            shasum -a 256 $BINARY_NAME | sed "s/$BINARY_NAME/$ASSET_NAME/" > ${ASSET_NAME}.sha256
-            gh release upload ${{ github.event.inputs.release_tag }} ${BINARY_NAME}#${ASSET_NAME} --clobber
-            gh release upload ${{ github.event.inputs.release_tag }} ${ASSET_NAME}.sha256 --clobber
           fi
+
+          # Create checksum file
+          echo "Creating checksum for ${ASSET_NAME}"
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            sha256sum $ASSET_NAME > ${ASSET_NAME}.sha256
+          else
+            shasum -a 256 $ASSET_NAME > ${ASSET_NAME}.sha256
+          fi
+
+          echo "Uploading ${ASSET_NAME} and ${ASSET_NAME}.sha256 to release ${{ github.event.inputs.release_tag }}"
+          gh release upload ${{ github.event.inputs.release_tag }} ${ASSET_NAME} --clobber
+          gh release upload ${{ github.event.inputs.release_tag }} ${ASSET_NAME}.sha256 --clobber
