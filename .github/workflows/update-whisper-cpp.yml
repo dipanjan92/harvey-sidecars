@@ -12,10 +12,52 @@ on:
   workflow_call:
 
 jobs:
-  build-whisper:
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ github.event.inputs.release_tag }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetches all history for all tags
+
+      - name: Ensure GitHub release exists for tag
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const tag = '${{ github.event.inputs.release_tag }}';
+            try {
+              const release = await github.rest.repos.getReleaseByTag({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag: tag,
+              });
+              console.log(`Release for tag ${tag} already exists.`);
+            } catch (error) {
+              if (error.status === 404) {
+                console.log(`Creating new release for tag ${tag}.`);
+                const release = await github.rest.repos.createRelease({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  tag_name: tag,
+                  name: `Sidecars ${tag}`,
+                  body: `Automated build of whisper.cpp sidecars (whisper-cli and whisper-stream).`,
+                  draft: false,
+                  prerelease: false,
+                });
+              } else {
+                throw error;
+              }
+            }
+
+  build-and-upload:
+    name: Build & Upload Binaries
+    needs: create-release
     runs-on: ${{ matrix.os }}
     strategy:
-      # When one build fails, we want the others to continue
       fail-fast: false
       matrix:
         include:
@@ -28,133 +70,88 @@ jobs:
           - os: windows-latest
             folder: windows-x86_64
             cmake_opts: ""
-    env:
-      MATRIX_FOLDER: ${{ matrix.folder }}
-      RELEASE_TAG: ${{ github.event.inputs.release_tag }}
+    
     defaults:
       run:
         shell: bash
 
     steps:
-      # 1. Checkout the repo
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          persist-credentials: true
-          fetch-depth: 0
 
-      # 2. Install prerequisites including SDL2
-      - name: Install prerequisites
+      - name: Install prerequisites (macOS)
+        if: runner.os == 'macOS'
+        run: brew install sdl2
+
+      - name: Install prerequisites (Windows)
+        if: runner.os == 'Windows'
         run: |
-          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            git clone https://github.com/microsoft/vcpkg.git
-            cd vcpkg
-            ./bootstrap-vcpkg.bat
-            ./vcpkg install sdl2
-            cd ..
-          else
-            brew install cmake git sdl2
-          fi
+          git clone https://github.com/microsoft/vcpkg.git
+          cd vcpkg
+          ./bootstrap-vcpkg.bat
+          ./vcpkg install sdl2:x64-windows
+          cd ..
 
-      # 3. Clone whisper.cpp
       - name: Clone whisper.cpp
         run: git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git whisper.cpp
 
-      # 4. Build whisper-cpp with SDL2 support
       - name: Build whisper-cpp
         run: |
           mkdir -p whisper.cpp/build
           cd whisper.cpp/build
-          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake ${{ matrix.cmake_opts }}
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            # Corrected path to vcpkg toolchain file
+            cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON -DCMAKE_TOOLCHAIN_FILE=../../vcpkg/scripts/buildsystems/vcpkg.cmake ${{ matrix.cmake_opts }}
           else
             cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON ${{ matrix.cmake_opts }}
           fi
           cmake --build . --config Release
 
-      # 5. Copy the binaries into our sidecar folder
-      - name: Copy whisper-cpp binaries
+      - name: Prepare assets for release
         run: |
-          mkdir -p whisper-cpp/${{ matrix.folder }}
-          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            cp whisper.cpp/build/bin/Release/main.exe whisper-cpp/${{ matrix.folder }}/whisper-cpp.exe
-            cp whisper.cpp/build/bin/Release/stream.exe whisper-cpp/${{ matrix.folder }}/stream.exe
-            cp vcpkg/installed/x64-windows/bin/SDL2.dll whisper-cpp/${{ matrix.folder }}/SDL2.dll
+          mkdir -p release_assets
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            cp whisper.cpp/build/bin/Release/main.exe release_assets/whisper-cli.exe
+            cp whisper.cpp/build/bin/Release/stream.exe release_assets/whisper-stream.exe
+            cp vcpkg/installed/x64-windows/bin/SDL2.dll release_assets/SDL2.dll
           else
-            cp whisper.cpp/build/bin/main whisper-cpp/${{ matrix.folder }}/whisper-cpp
-            cp whisper.cpp/build/bin/stream whisper-cpp/${{ matrix.folder }}/stream
+            cp whisper.cpp/build/bin/main release_assets/whisper-cli
+            cp whisper.cpp/build/bin/stream release_assets/whisper-stream
           fi
+          echo "--- Prepared assets ---"
+          ls -l release_assets
 
-      # 6. List files for debugging
-      - name: List files for debugging
-        run: |
-          echo "--- Contents of release folder ---"
-          ls -laR whisper-cpp/${{ matrix.folder }}
-
-      # 7. Ensure GitHub release exists (create if missing)
-      - name: Ensure GitHub release
-        id: ensure_release
-        uses: actions/github-script@v6
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          result-encoding: string
-          script: |
-            const tag = process.env.RELEASE_TAG;
-            try {
-              const rel = await github.rest.repos.getReleaseByTag({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                tag
-              });
-              return rel.data.upload_url;
-            } catch {
-              const rel = await github.rest.repos.createRelease({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                tag_name: tag,
-                commitish: context.sha,
-                name: `harvey-sidecars ${tag}`,
-                body: `Automated build of whisper-cpp`,
-                draft: false,
-                prerelease: false
-              });
-              return rel.data.upload_url;
-            }
-
-      # 8. Upload all assets to the release
-      - name: Upload release assets
+      - name: Rename, checksum, and upload assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -ex
-          cd whisper-cpp/${{ matrix.folder }}
-          
-          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            # Windows asset names
-            WHISPER_ASSET="whisper-cpp-${{ matrix.folder }}.exe"
-            STREAM_ASSET="stream-${{ matrix.folder }}.exe"
+          cd release_assets
 
-            mv whisper-cpp.exe "${WHISPER_ASSET}"
-            mv stream.exe "${STREAM_ASSET}"
-            
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            # Asset names for Windows
+            CLI_ASSET="whisper-cli-${{ matrix.folder }}.exe"
+            STREAM_ASSET="whisper-stream-${{ matrix.folder }}.exe"
+            mv whisper-cli.exe "${CLI_ASSET}"
+            mv whisper-stream.exe "${STREAM_ASSET}"
+
             # Create checksums
-            sha256sum "${WHISPER_ASSET}" > "${WHISPER_ASSET}.sha256"
+            sha256sum "${CLI_ASSET}" > "${CLI_ASSET}.sha256"
             sha256sum "${STREAM_ASSET}" > "${STREAM_ASSET}.sha256"
-
+            
             # Upload all assets
-            gh release upload ${{ github.event.inputs.release_tag }} "${WHISPER_ASSET}" "${WHISPER_ASSET}.sha256" "${STREAM_ASSET}" "${STREAM_ASSET}.sha256" SDL2.dll --clobber
+            gh release upload ${{ needs.create-release.outputs.release_tag }} "${CLI_ASSET}" "${CLI_ASSET}.sha256" "${STREAM_ASSET}" "${STREAM_ASSET}.sha256" SDL2.dll --clobber
           else
-            # macOS/Linux asset names
-            WHISPER_ASSET="whisper-cpp-${{ matrix.folder }}"
-            STREAM_ASSET="stream-${{ matrix.folder }}"
-
-            mv whisper-cpp "${WHISPER_ASSET}"
-            mv stream "${STREAM_ASSET}"
+            # Asset names for macOS/Linux
+            CLI_ASSET="whisper-cli-${{ matrix.folder }}"
+            STREAM_ASSET="whisper-stream-${{ matrix.folder }}"
+            mv whisper-cli "${CLI_ASSET}"
+            mv whisper-stream "${STREAM_ASSET}"
 
             # Create checksums
-            shasum -a 256 "${WHISPER_ASSET}" > "${WHISPER_ASSET}.sha256"
+            shasum -a 256 "${CLI_ASSET}" > "${CLI_ASSET}.sha256"
             shasum -a 256 "${STREAM_ASSET}" > "${STREAM_ASSET}.sha256"
 
             # Upload all assets
-            gh release upload ${{ github.event.inputs.release_tag }} "${WHISPER_ASSET}" "${WHISPER_ASSET}.sha256" "${STREAM_ASSET}" "${STREAM_ASSET}.sha256" --clobber
+            gh release upload ${{ needs.create-release.outputs.release_tag }} "${CLI_ASSET}" "${CLI_ASSET}.sha256" "${STREAM_ASSET}" "${STREAM_ASSET}.sha256" --clobber
           fi
