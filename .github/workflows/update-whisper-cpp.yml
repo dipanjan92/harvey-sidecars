@@ -83,7 +83,15 @@ jobs:
             cp whisper.cpp/build/bin/stream whisper-cpp/${{ matrix.folder }}/stream
           fi
 
-      # 6. Ensure GitHub release exists (create if missing)
+      # 6. List files for debugging
+      - name: List files for debugging
+        run: |
+          echo "--- Contents of build directory ---"
+          ls -laR whisper.cpp/build/bin
+          echo "--- Contents of release folder ---"
+          ls -laR whisper-cpp/${{ matrix.folder }}
+
+      # 7. Ensure GitHub release exists (create if missing)
       - name: Ensure GitHub release
         id: ensure_release
         uses: actions/github-script@v6
@@ -106,66 +114,46 @@ jobs:
                 tag_name: tag,
                 commitish: context.sha,
                 name: `harvey-sidecars ${tag}`,
-                body: `Automated build of whisper-cpp for ${process.env.MATRIX_FOLDER}`,
+                body: `Automated build of whisper-cpp`,
                 draft: false,
                 prerelease: false
               });
               return rel.data.upload_url;
             }
 
-      # 7. Upload assets
-      - name: Upload assets
+      # 8. Upload all assets to the release
+      - name: Upload release assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -x
           cd whisper-cpp/${{ matrix.folder }}
+          
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
             # Upload whisper-cpp
-            BINARY_NAME_W="whisper-cpp.exe"
-            ASSET_NAME_W="whisper-cpp-${{ matrix.folder }}.exe"
-            sha256sum $BINARY_NAME_W | sed "s/$BINARY_NAME_W/$ASSET_NAME_W/" > ${ASSET_NAME_W}.sha256
-            gh release upload ${{ github.event.inputs.release_tag }} ${BINARY_NAME_W}#${ASSET_NAME_W} --clobber
-            gh release upload ${{ github.event.inputs.release_tag }} ${ASSET_NAME_W}.sha256 --clobber
+            gh release upload ${{ github.event.inputs.release_tag }} whisper-cpp.exe --clobber
+            sha256sum whisper-cpp.exe > whisper-cpp.sha256
+            gh release upload ${{ github.event.inputs.release_tag }} whisper-cpp.sha256 --clobber
+            
             # Upload stream
-            BINARY_NAME_S="stream.exe"
-            ASSET_NAME_S="stream-${{ matrix.folder }}.exe"
-            sha256sum $BINARY_NAME_S | sed "s/$BINARY_NAME_S/$ASSET_NAME_S/" > ${ASSET_NAME_S}.sha256
-            gh release upload ${{ github.event.inputs.release_tag }} ${BINARY_NAME_S}#${ASSET_NAME_S} --clobber
-            gh release upload ${{ github.event.inputs.release_tag }} ${ASSET_NAME_S}.sha256 --clobber
+            gh release upload ${{ github.event.inputs.release_tag }} stream.exe --clobber
+            sha256sum stream.exe > stream.sha256
+            gh release upload ${{ github.event.inputs.release_tag }} stream.sha256 --clobber
+
             # Upload SDL2.dll
             gh release upload ${{ github.event.inputs.release_tag }} SDL2.dll --clobber
           else
             # Upload whisper-cpp
-            BINARY_NAME_W="whisper-cpp"
-            ASSET_NAME_W="whisper-cpp-${{ matrix.folder }}"
-            shasum -a 256 $BINARY_NAME_W | sed "s/$BINARY_NAME_W/$ASSET_NAME_W/" > ${ASSET_NAME_W}.sha256
-            gh release upload ${{ github.event.inputs.release_tag }} ${BINARY_NAME_W}#${ASSET_NAME_W} --clobber
-            gh release upload ${{ github.event.inputs.release_tag }} ${ASSET_NAME_W}.sha256 --clobber
+            BINARY_NAME="whisper-cpp"
+            ASSET_NAME="whisper-cpp-${{ matrix.folder }}"
+            gh release upload ${{ github.event.inputs.release_tag }} ${BINARY_NAME}#${ASSET_NAME} --clobber
+            shasum -a 256 ${BINARY_NAME} | sed "s/${BINARY_NAME}/${ASSET_NAME}/" > ${ASSET_NAME}.sha256
+            gh release upload ${{ github.event.inputs.release_tag }} ${ASSET_NAME}.sha256 --clobber
+
             # Upload stream
-            BINARY_NAME_S="stream"
-            ASSET_NAME_S="stream-${{ matrix.folder }}"
-            shasum -a 256 $BINARY_NAME_S | sed "s/$BINARY_NAME_S/$ASSET_NAME_S/" > ${ASSET_NAME_S}.sha256
-            gh release upload ${{ github.event.inputs.release_tag }} ${BINARY_NAME_S}#${ASSET_NAME_S} --clobber
-            gh release upload ${{ github.event.inputs.release_tag }} ${ASSET_NAME_S}.sha256 --clobber
+            BINARY_NAME="stream"
+            ASSET_NAME="stream-${{ matrix.folder }}"
+            gh release upload ${{ github.event.inputs.release_tag }} ${BINARY_NAME}#${ASSET_NAME} --clobber
+            shasum -a 256 ${BINARY_NAME} | sed "s/${BINARY_NAME}/${ASSET_NAME}/" > ${ASSET_NAME}.sha256
+            gh release upload ${{ github.event.inputs.release_tag }} ${ASSET_NAME}.sha256 --clobber
           fi
-        if: matrix.os != 'windows-latest'
-      - name: Upload Windows assets
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          cd whisper-cpp/${{ matrix.folder }}
-          # Upload whisper-cpp
-          BINARY_NAME_W="whisper-cpp.exe"
-          ASSET_NAME_W="whisper-cpp-${{ matrix.folder }}.exe"
-          sha256sum $BINARY_NAME_W | sed "s/$BINARY_NAME_W/$ASSET_NAME_W/" > ${ASSET_NAME_W}.sha256
-          gh release upload ${{ github.event.inputs.release_tag }} ${BINARY_NAME_W}#${ASSET_NAME_W} --clobber
-          gh release upload ${{ github.event.inputs.release_tag }} ${ASSET_NAME_W}.sha256 --clobber
-          # Upload stream
-          BINARY_NAME_S="stream.exe"
-          ASSET_NAME_S="stream-${{ matrix.folder }}.exe"
-          sha256sum $BINARY_NAME_S | sed "s/$BINARY_NAME_S/$ASSET_NAME_S/" > ${ASSET_NAME_S}.sha256
-          gh release upload ${{ github.event.inputs.release_tag }} ${BINARY_NAME_S}#${ASSET_NAME_S} --clobber
-          gh release upload ${{ github.event.inputs.release_tag }} ${ASSET_NAME_S}.sha256 --clobber
-          # Upload SDL2.dll
-          gh release upload ${{ github.event.inputs.release_tag }} SDL2.dll --clobber
-        if: matrix.os == 'windows-latest'
