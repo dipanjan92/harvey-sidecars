@@ -3,7 +3,7 @@ name: Update Diarize-CLI Sidecar
 
 # Permissions granted to the GITHUB_TOKEN for this workflow
 permissions:
-  contents: write # Allows the workflow to write to the repository (e.g., commit files)
+  contents: write # Allows the workflow to write to the repository (e.g., create releases and upload assets)
 
 # Triggers for the workflow
 on:
@@ -23,7 +23,6 @@ jobs:
     # Environment variables available to all steps in this job
     env:
       HUGGINGFACE_TOKEN: ${{ secrets.HUGGINGFACE_TOKEN }} # Securely pass Hugging Face token
-      MATRIX_FOLDER: ${{ matrix.folder }}
       RELEASE_TAG: ${{ github.event.inputs.release_tag }}
       PYTHONIOENCODING: "UTF-8" # Fix for UnicodeEncodeError on Windows
       
@@ -47,7 +46,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           persist-credentials: true # Persist credentials for git push
-          fetch-depth: 0           # Fetch all history for all branches and tags
+          fetch-depth: 0          # Fetch all history for all branches and tags
 
       # Step 2: Set up Python 3.11
       - name: Set up Python 3.11
@@ -66,7 +65,7 @@ jobs:
       - name: Log in to Hugging Face
         run: hf auth login --token "$HUGGINGFACE_TOKEN"
 
-      # Step 5: Preload Pyannote pipeline and copy models from cache
+      # Step 5: Preload Pyannote pipeline and copy models
       - name: Preload Pyannote pipeline and copy models
         run: |
           # Preload speaker diarization pipeline into cache
@@ -81,15 +80,7 @@ jobs:
 
           # Define Pyannote cache directory
           HF_CACHE_DIR="${HOME}/.cache/torch/pyannote"
-          echo "HF_CACHE_DIR is: $HF_CACHE_DIR"
-          ls -l "$HF_CACHE_DIR"
-          echo "Checking individual model cache directories:"
-          ls -d "$HF_CACHE_DIR"/models--pyannote--speaker-diarization* || echo "  None found"
-          ls -d "$HF_CACHE_DIR"/models--pyannote--segmentation* || echo "  None found"
-          ls -d "$HF_CACHE_DIR"/models--pyannote--wespeaker-voxceleb-resnet34-LM* || echo "  None found"
-          echo "Listing full ~/.cache/torch contents:"
-          ls -R "${HOME}/.cache/torch"
-
+          
           # Copy models to project folder
           mkdir -p diarize-cli/models
           if [[ "${{ runner.os }}" == "Windows" ]]; then
@@ -155,18 +146,16 @@ jobs:
             --hidden-import=pyannote.audio.models.embedding \
             diarize-cli/diarize_cli.py
 
-      # Step 10: Copy the built binary to a structured folder
-      - name: Copy diarize-cli binary
+      # Step 10: Prepare assets for upload by renaming the binary
+      - name: Prepare assets for upload
         run: |
-          mkdir -p diarize-cli/${{ matrix.folder }}
+          mkdir -p upload_assets
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            cp dist/diarize-cli.exe diarize-cli/${{ matrix.folder }}/diarize-cli.exe
-            chmod +x diarize-cli/${{ matrix.folder }}/diarize-cli.exe
+            mv dist/diarize-cli.exe upload_assets/diarize-cli-${{ matrix.folder }}.exe
           else
-            cp dist/diarize-cli diarize-cli/${{ matrix.folder }}/diarize-cli
-            chmod +x diarize-cli/${{ matrix.folder }}/diarize-cli
+            mv dist/diarize-cli upload_assets/diarize-cli-${{ matrix.folder }}
           fi
-
+          
       # Step 11: Ensure GitHub release exists (create if missing)
       - name: Ensure GitHub release
         id: ensure_release
@@ -209,17 +198,16 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          cd diarize-cli/${{ matrix.folder }}
+          cd upload_assets
+          ASSET_FILE=$(ls)
+          echo "Preparing to upload: $ASSET_FILE"
+          
+          # Create checksum file
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            BINARY_NAME="diarize-cli.exe"
-            ASSET_NAME="diarize-cli-${{ matrix.folder }}.exe"
-            sha256sum $BINARY_NAME | sed "s/$BINARY_NAME/$ASSET_NAME/" > ${ASSET_NAME}.sha256
-            gh release upload ${{ github.event.inputs.release_tag }} ${BINARY_NAME}#${ASSET_NAME} --clobber
-            gh release upload ${{ github.event.inputs.release_tag }} ${ASSET_NAME}.sha256 --clobber
+            sha256sum "$ASSET_FILE" > "${ASSET_FILE}.sha256"
           else
-            BINARY_NAME="diarize-cli"
-            ASSET_NAME="diarize-cli-${{ matrix.folder }}"
-            shasum -a 256 $BINARY_NAME | sed "s/$BINARY_NAME/$ASSET_NAME/" > ${ASSET_NAME}.sha256
-            gh release upload ${{ github.event.inputs.release_tag }} ${BINARY_NAME}#${ASSET_NAME} --clobber
-            gh release upload ${{ github.event.inputs.release_tag }} ${ASSET_NAME}.sha256 --clobber
+            shasum -a 256 "$ASSET_FILE" > "${ASSET_FILE}.sha256"
           fi
+          
+          # Upload both the binary and its checksum file
+          gh release upload ${{ github.event.inputs.release_tag }} "$ASSET_FILE" "${ASSET_FILE}.sha256" --clobber
