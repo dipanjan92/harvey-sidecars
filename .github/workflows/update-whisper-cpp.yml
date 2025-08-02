@@ -15,6 +15,8 @@ jobs:
   build-whisper:
     runs-on: ${{ matrix.os }}
     strategy:
+      # When one build fails, we want the others to continue
+      fail-fast: false
       matrix:
         include:
           - os: macos-13
@@ -86,8 +88,6 @@ jobs:
       # 6. List files for debugging
       - name: List files for debugging
         run: |
-          echo "--- Contents of build directory ---"
-          ls -laR whisper.cpp/build/bin
           echo "--- Contents of release folder ---"
           ls -laR whisper-cpp/${{ matrix.folder }}
 
@@ -126,34 +126,35 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -x
+          set -ex
           cd whisper-cpp/${{ matrix.folder }}
           
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            # Upload whisper-cpp
-            gh release upload ${{ github.event.inputs.release_tag }} whisper-cpp.exe --clobber
-            sha256sum whisper-cpp.exe > whisper-cpp.sha256
-            gh release upload ${{ github.event.inputs.release_tag }} whisper-cpp.sha256 --clobber
+            # Windows asset names
+            WHISPER_ASSET="whisper-cpp-${{ matrix.folder }}.exe"
+            STREAM_ASSET="stream-${{ matrix.folder }}.exe"
+
+            mv whisper-cpp.exe "${WHISPER_ASSET}"
+            mv stream.exe "${STREAM_ASSET}"
             
-            # Upload stream
-            gh release upload ${{ github.event.inputs.release_tag }} stream.exe --clobber
-            sha256sum stream.exe > stream.sha256
-            gh release upload ${{ github.event.inputs.release_tag }} stream.sha256 --clobber
+            # Create checksums
+            sha256sum "${WHISPER_ASSET}" > "${WHISPER_ASSET}.sha256"
+            sha256sum "${STREAM_ASSET}" > "${STREAM_ASSET}.sha256"
 
-            # Upload SDL2.dll
-            gh release upload ${{ github.event.inputs.release_tag }} SDL2.dll --clobber
+            # Upload all assets
+            gh release upload ${{ github.event.inputs.release_tag }} "${WHISPER_ASSET}" "${WHISPER_ASSET}.sha256" "${STREAM_ASSET}" "${STREAM_ASSET}.sha256" SDL2.dll --clobber
           else
-            # Upload whisper-cpp
-            BINARY_NAME="whisper-cpp"
-            ASSET_NAME="whisper-cpp-${{ matrix.folder }}"
-            gh release upload ${{ github.event.inputs.release_tag }} ${BINARY_NAME}#${ASSET_NAME} --clobber
-            shasum -a 256 ${BINARY_NAME} | sed "s/${BINARY_NAME}/${ASSET_NAME}/" > ${ASSET_NAME}.sha256
-            gh release upload ${{ github.event.inputs.release_tag }} ${ASSET_NAME}.sha256 --clobber
+            # macOS/Linux asset names
+            WHISPER_ASSET="whisper-cpp-${{ matrix.folder }}"
+            STREAM_ASSET="stream-${{ matrix.folder }}"
 
-            # Upload stream
-            BINARY_NAME="stream"
-            ASSET_NAME="stream-${{ matrix.folder }}"
-            gh release upload ${{ github.event.inputs.release_tag }} ${BINARY_NAME}#${ASSET_NAME} --clobber
-            shasum -a 256 ${BINARY_NAME} | sed "s/${BINARY_NAME}/${ASSET_NAME}/" > ${ASSET_NAME}.sha256
-            gh release upload ${{ github.event.inputs.release_tag }} ${ASSET_NAME}.sha256 --clobber
+            mv whisper-cpp "${WHISPER_ASSET}"
+            mv stream "${STREAM_ASSET}"
+
+            # Create checksums
+            shasum -a 256 "${WHISPER_ASSET}" > "${WHISPER_ASSET}.sha256"
+            shasum -a 256 "${STREAM_ASSET}" > "${STREAM_ASSET}.sha256"
+
+            # Upload all assets
+            gh release upload ${{ github.event.inputs.release_tag }} "${WHISPER_ASSET}" "${WHISPER_ASSET}.sha256" "${STREAM_ASSET}" "${STREAM_ASSET}.sha256" --clobber
           fi
