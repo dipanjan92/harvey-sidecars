@@ -49,7 +49,6 @@ jobs:
               --disable-xlib
               --pkg-config-flags="--static"
               --disable-securetransport
-              --disable-x11grab
               --disable-sdl2
               --disable-opengl
               --disable-appkit
@@ -74,7 +73,6 @@ jobs:
               --disable-xlib
               --pkg-config-flags="--static"
               --disable-securetransport
-              --disable-x11grab
               --disable-sdl2
               --disable-opengl
               --disable-appkit
