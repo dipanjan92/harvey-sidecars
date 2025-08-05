@@ -47,6 +47,9 @@ jobs:
               --enable-iconv
               --disable-xlib
               --disable-fontconfig
+              --disable-libfreetype
+              --disable-libfribidi
+              --disable-libharfbuzz
               --disable-securetransport
               --disable-sdl2
               --disable-opengl
@@ -71,6 +74,9 @@ jobs:
               --enable-iconv
               --disable-xlib
               --disable-fontconfig
+              --disable-libfreetype
+              --disable-libfribidi
+              --disable-libharfbuzz
               --disable-securetransport
               --disable-sdl2
               --disable-opengl
@@ -92,6 +98,7 @@ jobs:
               --enable-zlib
               --enable-iconv
               --disable-libmp3lame
+
 
     defaults:
       run:
