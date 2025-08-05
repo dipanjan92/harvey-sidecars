@@ -47,6 +47,8 @@ jobs:
               --enable-zlib
               --enable-iconv
               --disable-xlib
+              --pkg-config-flags="--static"
+              --disable-securetransport
 
           - os: macos-13 # For x86_64
             folder: macos-x86_64
@@ -65,6 +67,8 @@ jobs:
               --enable-zlib
               --enable-iconv
               --disable-xlib
+              --pkg-config-flags="--static"
+              --disable-securetransport
 
           - os: windows-latest
             folder: windows-x86_64
