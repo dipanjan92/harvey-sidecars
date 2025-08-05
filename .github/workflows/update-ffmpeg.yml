@@ -49,6 +49,11 @@ jobs:
               --disable-xlib
               --pkg-config-flags="--static"
               --disable-securetransport
+              --disable-x11grab
+              --disable-sdl2
+              --disable-opengl
+              --disable-appkit
+              --disable-avfoundation
 
           - os: macos-13 # For x86_64
             folder: macos-x86_64
@@ -69,6 +74,11 @@ jobs:
               --disable-xlib
               --pkg-config-flags="--static"
               --disable-securetransport
+              --disable-x11grab
+              --disable-sdl2
+              --disable-opengl
+              --disable-appkit
+              --disable-avfoundation
 
           - os: windows-latest
             folder: windows-x86_64
