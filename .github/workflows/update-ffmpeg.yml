@@ -38,7 +38,6 @@ jobs:
             configure_opts: >-
               --arch=arm64
               --disable-gpl
-              --disable-libmp3lame
               --disable-nonfree
               --disable-ffplay
               --disable-ffprobe
@@ -47,12 +46,13 @@ jobs:
               --enable-zlib
               --enable-iconv
               --disable-xlib
-              --pkg-config-flags="--static"
+              --disable-fontconfig
               --disable-securetransport
               --disable-sdl2
               --disable-opengl
               --disable-appkit
-              --disable-avfoundation
+              --disable-libmp3lame
+              --pkg-config-flags="--static"
 
           - os: macos-13 # For x86_64
             folder: macos-x86_64
@@ -62,7 +62,6 @@ jobs:
             configure_opts: >-
               --arch=x86_64
               --disable-gpl
-              --disable-libmp3lame
               --disable-nonfree
               --disable-ffplay
               --disable-ffprobe
@@ -71,12 +70,13 @@ jobs:
               --enable-zlib
               --enable-iconv
               --disable-xlib
-              --pkg-config-flags="--static"
+              --disable-fontconfig
               --disable-securetransport
               --disable-sdl2
               --disable-opengl
               --disable-appkit
-              --disable-avfoundation
+              --disable-libmp3lame
+              --pkg-config-flags="--static"
 
           - os: windows-latest
             folder: windows-x86_64
@@ -85,13 +85,13 @@ jobs:
               --target-os=win64
               --disable-asm
               --disable-gpl
-              --disable-libmp3lame
               --disable-nonfree
               --disable-ffplay
               --disable-ffprobe
               --disable-doc
               --enable-zlib
               --enable-iconv
+              --disable-libmp3lame
 
     defaults:
       run:
