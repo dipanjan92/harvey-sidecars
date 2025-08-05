@@ -1,4 +1,4 @@
-name: Release Sidecars (Debug)
+name: Release Sidecars
 
 on:
   workflow_dispatch:
