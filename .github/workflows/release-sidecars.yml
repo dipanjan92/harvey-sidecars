@@ -1,0 +1,64 @@
+name: Release Sidecars
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'The branch to run the workflow on'
+        required: true
+        default: 'main'
+      tag:
+        description: 'The release tag to create and use for artifacts'
+        required: true
+
+jobs:
+  delete-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write # Added for gh release delete
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch }}
+
+      - name: Delete existing release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Checking for release ${{ github.event.inputs.tag }}"
+          if gh release view ${{ github.event.inputs.tag }}; then
+            echo "Release found, deleting..."
+            gh release delete ${{ github.event.inputs.tag }} --yes
+          else
+            echo "Release not found, skipping delete."
+          fi
+
+  build-ffmpeg:
+    needs: delete-release
+    uses: ./.github/workflows/update-ffmpeg.yml
+    with:
+      release_tag: ${{ github.event.inputs.tag }}
+    secrets: inherit
+
+  build-whisper:
+    needs: build-ffmpeg
+    uses: ./.github/workflows/update-whisper-cpp.yml
+    with:
+      release_tag: ${{ github.event.inputs.tag }}
+    secrets: inherit
+
+  build-diarize:
+    needs: build-whisper
+    uses: ./.github/workflows/update-diarize-cli.yml
+    with:
+      release_tag: ${{ github.event.inputs.tag }}
+    secrets: inherit
+
+  run-tests:
+    needs: [build-diarize]
+    uses: ./.github/workflows/tests.yml
+    with:
+      release_tag: ${{ github.event.inputs.tag }}
+    secrets: inherit

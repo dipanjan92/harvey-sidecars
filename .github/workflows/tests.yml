@@ -2,10 +2,16 @@ name: Test Pre-built Sidecars
 
 on:
   workflow_dispatch:
-
-env:
-  # The release tag from which to download the test binaries
-  RELEASE_TAG: "v0.2.0"
+    inputs:
+      release_tag:
+        description: 'The release tag to download binaries from'
+        required: true
+  workflow_call:
+    inputs:
+      release_tag:
+        description: 'The release tag to download binaries from'
+        required: true
+        type: string
 
 jobs:
   test_transcription:
@@ -32,6 +38,7 @@ jobs:
       - name: Download and Prepare Binaries
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           set -ex
           # Define the file extension for Windows
@@ -47,11 +54,11 @@ jobs:
           echo "Downloading ${FFMPEG_ASSET} and ${WHISPER_ASSET}..."
 
           # Download the main binaries from the release
-          gh release download ${{ env.RELEASE_TAG }} --pattern "${FFMPEG_ASSET}" --pattern "${WHISPER_ASSET}" --clobber
+          gh release download "${{ env.RELEASE_TAG }}" --pattern "${FFMPEG_ASSET}" --pattern "${WHISPER_ASSET}" --clobber
           
           # Download SDL2.dll for Windows
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            gh release download ${{ env.RELEASE_TAG }} --pattern "SDL2.dll" --clobber
+            gh release download "${{ env.RELEASE_TAG }}" --pattern "SDL2.dll" --clobber
           fi
           
           # Make the binaries executable on non-Windows runners
