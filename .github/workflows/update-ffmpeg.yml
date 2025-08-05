@@ -48,6 +48,7 @@ jobs:
               --enable-videotoolbox
               --disable-libmp3lame
               --pkg-config-flags="--static"
+              --extra-ldflags="-liconv"
 
           - os: macos-13 # For x86_64
             folder: macos-x86_64
@@ -67,6 +68,7 @@ jobs:
               --enable-videotoolbox
               --disable-libmp3lame
               --pkg-config-flags="--static"
+              --extra-ldflags="-liconv"
 
           - os: windows-latest
             folder: windows-x86_64
