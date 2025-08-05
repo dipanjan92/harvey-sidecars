@@ -46,6 +46,7 @@ jobs:
               --enable-videotoolbox
               --enable-zlib
               --enable-iconv
+              --disable-xlib
 
           - os: macos-13 # For x86_64
             folder: macos-x86_64
@@ -63,6 +64,7 @@ jobs:
               --enable-videotoolbox
               --enable-zlib
               --enable-iconv
+              --disable-xlib
 
           - os: windows-latest
             folder: windows-x86_64
