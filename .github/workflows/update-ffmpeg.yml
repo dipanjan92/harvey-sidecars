@@ -10,6 +10,11 @@ on:
         description: 'Tag to build'
         required: true
   workflow_call:
+    inputs:
+      release_tag:
+        description: 'Tag to build'
+        required: true
+        type: string
 
 env:
   FFMPEG_TAG: "n5.1.4"
@@ -20,7 +25,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       MATRIX_FOLDER: ${{ matrix.folder }}
-      RELEASE_TAG: ${{ github.event.inputs.release_tag }}
+      RELEASE_TAG: ${{ inputs.release_tag }}
     strategy:
       fail-fast: false
       matrix:
@@ -259,6 +264,6 @@ jobs:
             shasum -a 256 $ASSET_NAME > ${ASSET_NAME}.sha256
           fi
 
-          echo "Uploading ${ASSET_NAME} and ${ASSET_NAME}.sha256 to release ${{ github.event.inputs.release_tag }}"
-          gh release upload ${{ github.event.inputs.release_tag }} ${ASSET_NAME} --clobber
-          gh release upload ${{ github.event.inputs.release_tag }} ${ASSET_NAME}.sha256 --clobber
+          echo "Uploading ${ASSET_NAME} and ${ASSET_NAME}.sha256 to release ${{ env.RELEASE_TAG }}"
+          gh release upload ${{ env.RELEASE_TAG }} ${ASSET_NAME} --clobber
+          gh release upload ${{ env.RELEASE_TAG }} ${ASSET_NAME}.sha256 --clobber

@@ -13,6 +13,11 @@ on:
         description: 'Git tag to use for the release (must already exist)'
         required: true
   workflow_call:
+    inputs:
+      release_tag:
+        description: 'Git tag to use for the release (must already exist)'
+        required: true
+        type: string
 
 jobs:
   build-diarize-matrix:
@@ -23,7 +28,7 @@ jobs:
     # Environment variables available to all steps in this job
     env:
       HUGGINGFACE_TOKEN: ${{ secrets.HUGGINGFACE_TOKEN }} # Securely pass Hugging Face token
-      RELEASE_TAG: ${{ github.event.inputs.release_tag }}
+      RELEASE_TAG: ${{ inputs.release_tag }}
       PYTHONIOENCODING: "UTF-8" # Fix for UnicodeEncodeError on Windows
       
     strategy:
@@ -210,4 +215,4 @@ jobs:
           fi
           
           # Upload both the binary and its checksum file
-          gh release upload ${{ github.event.inputs.release_tag }} "$ASSET_FILE" "${ASSET_FILE}.sha256" --clobber
+          gh release upload ${{ env.RELEASE_TAG }} "$ASSET_FILE" "${ASSET_FILE}.sha256" --clobber
