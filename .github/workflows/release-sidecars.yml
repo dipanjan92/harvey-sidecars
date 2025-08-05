@@ -41,6 +41,8 @@ jobs:
     with:
       release_tag: ${{ github.event.inputs.tag }}
     secrets: inherit
+    permissions:
+      contents: write
 
   build-whisper:
     needs: build-ffmpeg
@@ -48,6 +50,8 @@ jobs:
     with:
       release_tag: ${{ github.event.inputs.tag }}
     secrets: inherit
+    permissions:
+      contents: write
 
   build-diarize:
     needs: build-whisper
@@ -55,6 +59,8 @@ jobs:
     with:
       release_tag: ${{ github.event.inputs.tag }}
     secrets: inherit
+    permissions:
+      contents: write
 
   run-tests:
     needs: [build-diarize]
