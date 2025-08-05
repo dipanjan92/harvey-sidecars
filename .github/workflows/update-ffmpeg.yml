@@ -42,18 +42,10 @@ jobs:
               --disable-ffplay
               --disable-ffprobe
               --disable-doc
-              --enable-videotoolbox
+              --disable-autodetect
               --enable-zlib
               --enable-iconv
-              --disable-xlib
-              --disable-fontconfig
-              --disable-libfreetype
-              --disable-libfribidi
-              --disable-libharfbuzz
-              --disable-securetransport
-              --disable-sdl2
-              --disable-opengl
-              --disable-appkit
+              --enable-videotoolbox
               --disable-libmp3lame
               --pkg-config-flags="--static"
 
@@ -69,18 +61,10 @@ jobs:
               --disable-ffplay
               --disable-ffprobe
               --disable-doc
-              --enable-videotoolbox
+              --disable-autodetect
               --enable-zlib
               --enable-iconv
-              --disable-xlib
-              --disable-fontconfig
-              --disable-libfreetype
-              --disable-libfribidi
-              --disable-libharfbuzz
-              --disable-securetransport
-              --disable-sdl2
-              --disable-opengl
-              --disable-appkit
+              --enable-videotoolbox
               --disable-libmp3lame
               --pkg-config-flags="--static"
 
