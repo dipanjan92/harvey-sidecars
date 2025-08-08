@@ -98,7 +98,6 @@ jobs:
             type: build
             install_deps: >-
               make
-              mingw-w64-clang-aarch64-toolchain
               mingw-w64-clang-aarch64-llvm
               mingw-w64-clang-aarch64-pkg-config
               mingw-w64-clang-aarch64-zlib
@@ -111,6 +110,7 @@ jobs:
               --ar=llvm-ar
               --ranlib=llvm-ranlib
               --enable-cross-compile
+              --sysroot=/usr/aarch64-w64-mingw32
               --disable-asm
               --disable-gpl
               --disable-nonfree
