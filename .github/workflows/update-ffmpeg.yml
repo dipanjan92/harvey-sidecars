@@ -99,6 +99,7 @@ jobs:
             install_deps: >-
               make
               mingw-w64-clang-aarch64-toolchain
+              mingw-w64-clang-aarch64-lld
               mingw-w64-clang-aarch64-pkg-config
               mingw-w64-clang-aarch64-zlib
               mingw-w64-clang-aarch64-libiconv
