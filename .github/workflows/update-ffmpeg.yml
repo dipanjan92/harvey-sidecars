@@ -98,8 +98,8 @@ jobs:
             type: build
             install_deps: >-
               make
-              mingw-w64-clang-aarch64-toolchain
-              mingw-w64-clang-aarch64-lld
+              mingw-w64-clang-x86_64-aarch64-toolchain
+              mingw-w64-clang-x86_64-lld
               mingw-w64-clang-aarch64-pkg-config
               mingw-w64-clang-aarch64-zlib
               mingw-w64-clang-aarch64-libiconv
@@ -189,7 +189,7 @@ jobs:
         if: runner.os == 'Windows' && matrix.type == 'build'
         uses: msys2/setup-msys2@v2
         with:
-          msystem: ${{ matrix.folder == 'windows-arm64' && 'CLANGARM64' || 'MINGW64' }}
+          msystem: ${{ matrix.folder == 'windows-arm64' && 'CLANG64' || 'MINGW64' }}
           update: true
           install: ${{ matrix.install_deps }}
 
@@ -274,9 +274,6 @@ jobs:
         shell: msys2 {0}
         run: |
           echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
-          if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
-            export PKG_CONFIG_PATH=/clangarm64/lib/pkgconfig
-          fi
           CPU_COUNT=$(nproc)
           echo "Using $CPU_COUNT cores for make"
 
