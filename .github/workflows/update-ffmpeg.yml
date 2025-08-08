@@ -196,11 +196,7 @@ jobs:
         if: runner.os == 'Linux' && matrix.type == 'build'
         run: |
           echo "Installing build dependencies on $RUNNER_OS for ${{ matrix.folder }}..."
-          if [[ -n "${{ matrix.install_deps }}" ]]; then
-            ${{ matrix.install_deps }}
-          else
-            echo "No specific install_deps for this Linux job."
-          fi
+          ${{ matrix.install_deps }}
 
       - name: Clone FFmpeg source
         if: matrix.type == 'build'
