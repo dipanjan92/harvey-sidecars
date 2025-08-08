@@ -184,7 +184,7 @@ jobs:
         if: runner.os == 'Windows' && matrix.type == 'build'
         uses: msys2/setup-msys2@v2
         with:
-          msystem: MINGW64
+          msystem: ${{ matrix.folder == 'windows-arm64' && 'CLANGARM64' || 'MINGW64' }}
           update: true
           install: ${{ matrix.install_deps }}
 
