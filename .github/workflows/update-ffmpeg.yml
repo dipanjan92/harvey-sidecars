@@ -274,6 +274,9 @@ jobs:
         shell: msys2 {0}
         run: |
           echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
+          if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
+            export PKG_CONFIG_PATH=/clangarm64/lib/pkgconfig
+          fi
           CPU_COUNT=$(nproc)
           echo "Using $CPU_COUNT cores for make"
 
