@@ -115,18 +115,36 @@ jobs:
         run: |
           if [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
             set -e
-            sudo dpkg --add-architecture arm64
-            # Remove the default deb822 source file which is hard to parse and modify.
-            sudo rm -f /etc/apt/sources.list.d/ubuntu.sources
-            # Create a new classic sources.list with explicit architectures
-            echo "deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ noble main restricted universe multiverse" | sudo tee /etc/apt/sources.list
-            echo "deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ noble-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
-            echo "deb [arch=amd64] http://security.ubuntu.com/ubuntu/ noble-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
-            echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ noble main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
-            echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ noble-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
-            echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ noble-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
             sudo apt-get update
-            sudo apt-get install -y --no-install-recommends gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libsdl2-dev:arm64
+            # Install the cross-compiler and pkg-config helper
+            # We will build SDL2 from source to avoid multi-arch apt issues
+            sudo apt-get install -y --no-install-recommends gcc-aarch64-linux-gnu g++-aarch64-linux-gnu pkg-config-aarch64-linux-gnu
+
+            # Create a toolchain file for building SDL2
+            cat << 'EOF' > toolchain-sdl2.cmake
+            set(CMAKE_SYSTEM_NAME Linux)
+            set(CMAKE_SYSTEM_PROCESSOR aarch64)
+            set(CMAKE_C_COMPILER aarch64-linux-gnu-gcc)
+            set(CMAKE_CXX_COMPILER aarch64-linux-gnu-g++)
+            set(CMAKE_FIND_ROOT_PATH /usr/aarch64-linux-gnu)
+            set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+            set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+            set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+            set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
+            EOF
+
+            # Build SDL2 from source for arm64
+            SDL2_VERSION="2.30.5"
+            curl -sL "https://github.com/libsdl-org/SDL/releases/download/release-${SDL2_VERSION}/SDL2-${SDL2_VERSION}.tar.gz" | tar xz
+            cd SDL2-${SDL2_VERSION}
+            mkdir build && cd build
+            cmake .. -DCMAKE_TOOLCHAIN_FILE=../../toolchain-sdl2.cmake \
+                      -DCMAKE_INSTALL_PREFIX=/usr/aarch64-linux-gnu \
+                      -DSDL_STATIC=ON \
+                      -DSDL_SHARED=OFF
+            make -j$(nproc)
+            sudo make install
+            cd ../..
           else
             sudo apt-get update -y
             sudo apt-get install -y libsdl2-dev
