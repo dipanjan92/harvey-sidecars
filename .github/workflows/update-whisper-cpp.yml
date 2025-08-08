@@ -150,6 +150,9 @@ jobs:
 
       - name: Build whisper-cpp
         run: |
+          if [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
+            export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig
+          fi
           mkdir -p whisper.cpp/build
           cd whisper.cpp/build
           if [[ "${{ runner.os }}" == "Windows" ]]; then
