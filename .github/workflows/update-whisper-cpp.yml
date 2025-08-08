@@ -75,6 +75,15 @@ jobs:
           - os: windows-latest
             folder: windows-x86_64
             cmake_opts: ""
+          - os: windows-latest
+            folder: windows-arm64
+            cmake_opts: "-A arm64"
+          - os: ubuntu-latest
+            folder: linux-x86_64
+            cmake_opts: ""
+          - os: ubuntu-latest
+            folder: linux-arm64
+            cmake_opts: "-DCMAKE_TOOLCHAIN_FILE=../toolchain-aarch64-linux-gnu.cmake"
     
     defaults:
       run:
@@ -94,18 +103,44 @@ jobs:
           git clone https://github.com/microsoft/vcpkg.git
           cd vcpkg
           ./bootstrap-vcpkg.bat
-          ./vcpkg install sdl2:x64-windows
+          if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
+            ./vcpkg install sdl2:arm64-windows
+          else
+            ./vcpkg install sdl2:x64-windows
+          fi
           cd ..
+
+      - name: Install prerequisites (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -y
+          if [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
+            sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libsdl2-dev:arm64
+          else
+            sudo apt-get install -y libsdl2-dev
+          fi
 
       - name: Clone whisper.cpp
         run: git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git whisper.cpp
+
+      - name: Create toolchain file for linux-arm64
+        if: matrix.folder == 'linux-arm64'
+        run: |
+          echo "set(CMAKE_SYSTEM_NAME Linux)" > whisper.cpp/toolchain-aarch64-linux-gnu.cmake
+          echo "set(CMAKE_SYSTEM_PROCESSOR aarch64)" >> whisper.cpp/toolchain-aarch64-linux-gnu.cmake
+          echo "set(CMAKE_C_COMPILER aarch64-linux-gnu-gcc)" >> whisper.cpp/toolchain-aarch64-linux-gnu.cmake
+          echo "set(CMAKE_CXX_COMPILER aarch64-linux-gnu-g++)" >> whisper.cpp/toolchain-aarch64-linux-gnu.cmake
+          echo "set(CMAKE_FIND_ROOT_PATH /usr/aarch64-linux-gnu)" >> whisper.cpp/toolchain-aarch64-linux-gnu.cmake
+          echo "set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)" >> whisper.cpp/toolchain-aarch64-linux-gnu.cmake
+          echo "set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)" >> whisper.cpp/toolchain-aarch64-linux-gnu.cmake
+          echo "set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)" >> whisper.cpp/toolchain-aarch64-linux-gnu.cmake
+          echo "set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)" >> whisper.cpp/toolchain-aarch64-linux-gnu.cmake
 
       - name: Build whisper-cpp
         run: |
           mkdir -p whisper.cpp/build
           cd whisper.cpp/build
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            # Corrected path to vcpkg toolchain file
             cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON -DCMAKE_TOOLCHAIN_FILE=../../vcpkg/scripts/buildsystems/vcpkg.cmake ${{ matrix.cmake_opts }}
           else
             cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON ${{ matrix.cmake_opts }}
@@ -117,12 +152,14 @@ jobs:
         run: |
           mkdir -p release_assets
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            # Corrected to copy the new executable names for Windows
             cp whisper.cpp/build/bin/Release/whisper-cli.exe release_assets/whisper-cli.exe
             cp whisper.cpp/build/bin/Release/whisper-stream.exe release_assets/whisper-stream.exe
-            cp vcpkg/installed/x64-windows/bin/SDL2.dll release_assets/SDL2.dll
+            if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
+              cp vcpkg/installed/arm64-windows/bin/SDL2.dll release_assets/SDL2.dll
+            else
+              cp vcpkg/installed/x64-windows/bin/SDL2.dll release_assets/SDL2.dll
+            fi
           else
-            # Corrected to copy the new executable names for macOS
             cp whisper.cpp/build/bin/whisper-cli release_assets/whisper-cli
             cp whisper.cpp/build/bin/whisper-stream release_assets/whisper-stream
           fi
@@ -137,29 +174,23 @@ jobs:
           cd release_assets
 
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            # Asset names for Windows
             CLI_ASSET="whisper-cli-${{ matrix.folder }}.exe"
             STREAM_ASSET="whisper-stream-${{ matrix.folder }}.exe"
             mv whisper-cli.exe "${CLI_ASSET}"
             mv whisper-stream.exe "${STREAM_ASSET}"
 
-            # Create checksums
             sha256sum "${CLI_ASSET}" > "${CLI_ASSET}.sha256"
             sha256sum "${STREAM_ASSET}" > "${STREAM_ASSET}.sha256"
             
-            # Upload all assets
             gh release upload ${{ needs.create-release.outputs.release_tag }} "${CLI_ASSET}" "${CLI_ASSET}.sha256" "${STREAM_ASSET}" "${STREAM_ASSET}.sha256" SDL2.dll --clobber
           else
-            # Asset names for macOS/Linux
             CLI_ASSET="whisper-cli-${{ matrix.folder }}"
             STREAM_ASSET="whisper-stream-${{ matrix.folder }}"
             mv whisper-cli "${CLI_ASSET}"
             mv whisper-stream "${STREAM_ASSET}"
 
-            # Create checksums
             shasum -a 256 "${CLI_ASSET}" > "${CLI_ASSET}.sha256"
             shasum -a 256 "${STREAM_ASSET}" > "${STREAM_ASSET}.sha256"
 
-            # Upload all assets
             gh release upload ${{ needs.create-release.outputs.release_tag }} "${CLI_ASSET}" "${CLI_ASSET}.sha256" "${STREAM_ASSET}" "${STREAM_ASSET}.sha256" --clobber
           fi
