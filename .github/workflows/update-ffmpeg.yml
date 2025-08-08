@@ -92,6 +92,8 @@ jobs:
               --enable-zlib
               --enable-iconv
               --disable-libmp3lame
+              --extra-cflags="-fuse-ld=lld"
+              --extra-cxxflags="-fuse-ld=lld"
 
           - os: windows-latest
             folder: windows-arm64
