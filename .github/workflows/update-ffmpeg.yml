@@ -142,14 +142,15 @@ jobs:
             install_deps: |
               set -e
               sudo dpkg --add-architecture arm64
-              for f in /etc/apt/sources.list /etc/apt/sources.list.d/*.list; do
-                if [ -f "$f" ]; then
-                  sudo sed -i.bak '/\[arch=/! s/^deb /deb [arch=amd64] /' "$f"
-                fi
-              done
-              echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble main restricted universe multiverse" | sudo tee /etc/apt/sources.list.d/arm64.list
-              echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64.list
-              echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64.list
+              # Remove the default deb822 source file which is hard to parse and modify.
+              sudo rm -f /etc/apt/sources.list.d/ubuntu.sources
+              # Create a new classic sources.list with explicit architectures
+              echo "deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ noble main restricted universe multiverse" | sudo tee /etc/apt/sources.list
+              echo "deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ noble-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
+              echo "deb [arch=amd64] http://security.ubuntu.com/ubuntu/ noble-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
+              echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ noble main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
+              echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ noble-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
+              echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ noble-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
               sudo apt-get update
               sudo apt-get install -y yasm nasm pkg-config gcc-aarch64-linux-gnu zlib1g-dev:arm64
             configure_opts: >-
