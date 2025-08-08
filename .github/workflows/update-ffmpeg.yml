@@ -292,7 +292,11 @@ jobs:
           )
 
           echo "Running configure with matrix opts: ${{ matrix.configure_opts }}"
-          ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }}
+          if ! ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }}; then
+            echo "Configure failed. Dumping config.log"
+            cat ffbuild/config.log
+            exit 1
+          fi
           
           make -j${CPU_COUNT}
           make install
