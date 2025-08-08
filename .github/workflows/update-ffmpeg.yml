@@ -73,6 +73,14 @@ jobs:
           - os: windows-latest
             folder: windows-x86_64
             type: build
+            install_deps: >-
+              make
+              mingw-w64-x86_64-gcc
+              mingw-w64-x86_64-yasm
+              mingw-w64-x86_64-nasm
+              mingw-w64-x86_64-pkg-config
+              mingw-w64-x86_64-zlib
+              mingw-w64-x86_64-libiconv
             configure_opts: >-
               --target-os=win64
               --disable-asm
@@ -84,6 +92,70 @@ jobs:
               --enable-zlib
               --enable-iconv
               --disable-libmp3lame
+
+          - os: windows-latest
+            folder: windows-arm64
+            type: build
+            install_deps: >-
+              make
+              mingw-w64-clang-aarch64-toolchain
+              mingw-w64-x86_64-yasm
+              mingw-w64-x86_64-nasm
+              mingw-w64-x86_64-pkg-config
+              mingw-w64-x86_64-zlib
+              mingw-w64-x86_64-libiconv
+            configure_opts: >-
+              --target-os=win64
+              --arch=aarch64
+              --cc=clang
+              --cxx=clang++
+              --disable-asm
+              --disable-gpl
+              --disable-nonfree
+              --disable-ffplay
+              --disable-ffprobe
+              --disable-doc
+              --enable-zlib
+              --enable-iconv
+              --disable-libmp3lame
+
+          - os: ubuntu-latest
+            folder: linux-x86_64
+            type: build
+            install_deps: |
+              sudo apt-get update -y && sudo apt-get install -y yasm nasm pkg-config zlib1g-dev
+            configure_opts: >-
+              --arch=x86_64
+              --disable-gpl
+              --disable-nonfree
+              --disable-ffplay
+              --disable-ffprobe
+              --disable-doc
+              --disable-autodetect
+              --enable-zlib
+              --enable-iconv
+              --disable-libmp3lame
+              --pkg-config-flags="--static"
+
+          - os: ubuntu-latest
+            folder: linux-arm64
+            type: build
+            install_deps: |
+              sudo apt-get update -y && sudo apt-get install -y yasm nasm pkg-config zlib1g-dev gcc-aarch64-linux-gnu
+            configure_opts: >-
+              --arch=aarch64
+              --cross-prefix=aarch64-linux-gnu-
+              --target-os=linux
+              --disable-gpl
+              --disable-nonfree
+              --disable-ffplay
+              --disable-ffprobe
+              --disable-doc
+              --disable-autodetect
+              --enable-zlib
+              --enable-iconv
+              --disable-libmp3lame
+              --pkg-config-flags="--static"
 
 
     defaults:
@@ -103,14 +175,7 @@ jobs:
         with:
           msystem: MINGW64
           update: true
-          install: >-
-            make
-            mingw-w64-x86_64-gcc
-            mingw-w64-x86_64-yasm
-            mingw-w64-x86_64-nasm
-            mingw-w64-x86_64-pkg-config
-            mingw-w64-x86_64-zlib
-            mingw-w64-x86_64-libiconv
+          install: ${{ matrix.install_deps }}
 
       - name: Install build prerequisites (macOS)
         if: runner.os == 'macOS' && matrix.type == 'build'
@@ -120,6 +185,16 @@ jobs:
             ${{ matrix.install_deps }}
           else
             echo "No specific install_deps for this macOS job."
+          fi
+
+      - name: Install build prerequisites (Linux)
+        if: runner.os == 'Linux' && matrix.type == 'build'
+        run: |
+          echo "Installing build dependencies on $RUNNER_OS for ${{ matrix.folder }}..."
+          if [[ -n "${{ matrix.install_deps }}" ]]; then
+            ${{ matrix.install_deps }}
+          else
+            echo "No specific install_deps for this Linux job."
           fi
 
       - name: Clone FFmpeg source
@@ -134,6 +209,31 @@ jobs:
         run: |
           echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
           CPU_COUNT=$(sysctl -n hw.logicalcpu)
+          echo "Using $CPU_COUNT cores for make"
+          
+          INSTALL_PREFIX="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
+          mkdir -p "${INSTALL_PREFIX}"
+          cd ffmpeg-src
+          
+          BASE_CONFIGURE_FLAGS=(
+            --prefix="${INSTALL_PREFIX}"
+            --disable-shared
+            --enable-static
+            --pkg-config-flags="--static"
+          )
+          
+          echo "Running configure with matrix opts: ${{ matrix.configure_opts }}"
+          ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }}
+          
+          make -j${CPU_COUNT}
+          make install
+          cd ..
+
+      - name: Configure & build FFmpeg (Linux)
+        if: matrix.type == 'build' && runner.os == 'Linux'
+        run: |
+          echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
+          CPU_COUNT=$(nproc)
           echo "Using $CPU_COUNT cores for make"
           
           INSTALL_PREFIX="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
