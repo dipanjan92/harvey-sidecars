@@ -98,14 +98,17 @@ jobs:
             type: build
             install_deps: >-
               make
-              mingw-w64-x86_64-aarch64-toolchain
-              mingw-w64-x86_64-aarch64-pkg-config
-              mingw-w64-x86_64-aarch64-zlib
-              mingw-w64-x86_64-aarch64-libiconv
+              mingw-w64-clang-aarch64-toolchain
+              mingw-w64-clang-aarch64-pkg-config
+              mingw-w64-clang-aarch64-zlib
+              mingw-w64-clang-aarch64-libiconv
             configure_opts: >-
               --target-os=win64
               --arch=aarch64
-              --cross-prefix=aarch64-w64-mingw32-
+              --cc=clang
+              --cxx=clang++
+              --ar=llvm-ar
+              --ranlib=llvm-ranlib
               --enable-cross-compile
               --disable-asm
               --disable-gpl
@@ -183,7 +186,7 @@ jobs:
         if: runner.os == 'Windows' && matrix.type == 'build'
         uses: msys2/setup-msys2@v2
         with:
-          msystem: MINGW64
+          msystem: ${{ matrix.folder == 'windows-arm64' && 'CLANGARM64' || 'MINGW64' }}
           update: true
           install: ${{ matrix.install_deps }}
 
