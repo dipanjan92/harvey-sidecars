@@ -317,7 +317,11 @@ jobs:
           ls -l "${INSTALL_DIR}/bin/"
 
           if [[ -f "${INSTALL_DIR}/bin/${SRC_EXE_NAME}" ]]; then
-            strip "${INSTALL_DIR}/bin/${SRC_EXE_NAME}"
+            if [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
+              aarch64-linux-gnu-strip "${INSTALL_DIR}/bin/${SRC_EXE_NAME}"
+            else
+              strip "${INSTALL_DIR}/bin/${SRC_EXE_NAME}"
+            fi
             mv "${INSTALL_DIR}/bin/${SRC_EXE_NAME}" "${INSTALL_DIR}/${FINAL_EXE_NAME}"
             if [[ "${{ runner.os }}" != "Windows" ]]; then
               chmod +x "${INSTALL_DIR}/${FINAL_EXE_NAME}"
