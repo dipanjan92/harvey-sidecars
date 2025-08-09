@@ -170,6 +170,7 @@ jobs:
               -DCMAKE_C_COMPILER="${{ env.TOOLCHAIN_DIR }}/bin/aarch64-none-linux-gnu-gcc" \
               -DCMAKE_CXX_COMPILER="${{ env.TOOLCHAIN_DIR }}/bin/aarch64-none-linux-gnu-g++" \
               -DCMAKE_PREFIX_PATH="${{ env.TOOLCHAIN_DIR }}/aarch64-none-linux-gnu" \
+              -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
               ${{ matrix.cmake_opts }}
           else
             cmake .. ${CMAKE_ARGS} ${{ matrix.cmake_opts }}
