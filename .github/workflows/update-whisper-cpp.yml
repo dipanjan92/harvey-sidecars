@@ -166,11 +166,17 @@ jobs:
           if [[ "${{ runner.os }}" == "Windows" ]]; then
             cmake .. ${CMAKE_ARGS} -DCMAKE_TOOLCHAIN_FILE=../../vcpkg/scripts/buildsystems/vcpkg.cmake ${{ matrix.cmake_opts }}
           elif [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
-            cmake .. ${CMAKE_ARGS} \
+            cmake .. \
               -DCMAKE_C_COMPILER="${{ env.TOOLCHAIN_DIR }}/bin/aarch64-none-linux-gnu-gcc" \
               -DCMAKE_CXX_COMPILER="${{ env.TOOLCHAIN_DIR }}/bin/aarch64-none-linux-gnu-g++" \
               -DCMAKE_PREFIX_PATH="${{ env.TOOLCHAIN_DIR }}/aarch64-none-linux-gnu" \
-              ${{ matrix.cmake_opts }}
+              -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
+              -DCMAKE_CROSSCOMPILING=TRUE \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DBUILD_SHARED_LIBS=OFF \
+              -DWHISPER_SDL2=ON \
+              -DCMAKE_C_FLAGS="-DGGML_USE_K_QUANTS -DGGML_ARM_NEON=ON" \
+              -DCMAKE_CXX_FLAGS="-DGGML_USE_K_QUANTS -DGGML_ARM_NEON=ON"
           else
             cmake .. ${CMAKE_ARGS} ${{ matrix.cmake_opts }}
           fi
