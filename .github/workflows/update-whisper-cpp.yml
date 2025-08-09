@@ -125,9 +125,9 @@ jobs:
             curl -sL "https://github.com/libsdl-org/SDL/releases/download/release-${SDL2_VERSION}/SDL2-${SDL2_VERSION}.tar.gz" | tar xz
             cd SDL2-${SDL2_VERSION}
             mkdir build && cd build
-            cmake .. -DCMAKE_C_COMPILER=${TOOLCHAIN_DIR}/bin/aarch64-none-linux-gnu-gcc \
-                      -DCMAKE_CXX_COMPILER=${TOOLCHAIN_DIR}/bin/aarch64-none-linux-gnu-g++ \
-                      -DCMAKE_INSTALL_PREFIX=${TOOLCHAIN_DIR}/aarch64-none-linux-gnu \
+            cmake .. -DCMAKE_C_COMPILER="${TOOLCHAIN_DIR}/bin/aarch64-none-linux-gnu-gcc" \
+                      -DCMAKE_CXX_COMPILER="${TOOLCHAIN_DIR}/bin/aarch64-none-linux-gnu-g++" \
+                      -DCMAKE_INSTALL_PREFIX="${TOOLCHAIN_DIR}/aarch64-none-linux-gnu" \
                       -DSDL_STATIC=ON \
                       -DSDL_SHARED=OFF
             make -j$(nproc)
@@ -160,15 +160,8 @@ jobs:
           elif [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
             TOOLCHAIN_DIR=${{ github.workspace }}/arm-gnu-toolchain-13.2.rel1-x86_64-aarch64-none-linux-gnu
             cmake .. ${CMAKE_ARGS} \
-              -DCMAKE_SYSTEM_NAME=Linux \
-              -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
               -DCMAKE_C_COMPILER=${TOOLCHAIN_DIR}/bin/aarch64-none-linux-gnu-gcc \
               -DCMAKE_CXX_COMPILER=${TOOLCHAIN_DIR}/bin/aarch64-none-linux-gnu-g++ \
-              -DCMAKE_FIND_ROOT_PATH=${TOOLCHAIN_DIR}/aarch64-none-linux-gnu \
-              -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER \
-              -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY \
-              -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY \
-              -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY \
               ${{ matrix.cmake_opts }}
           else
             cmake .. ${CMAKE_ARGS} ${{ matrix.cmake_opts }}
