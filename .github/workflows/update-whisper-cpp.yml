@@ -150,7 +150,8 @@ jobs:
         run: |
           if [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
             export PKG_CONFIG_PATH="${{ env.TOOLCHAIN_DIR }}/aarch64-none-linux-gnu/lib/pkgconfig"
-            export PATH=${{ env.TOOLCHAIN_DIR }}/bin:${PATH}
+            export CC="${{ env.TOOLCHAIN_DIR }}/bin/aarch64-none-linux-gnu-gcc"
+            export CXX="${{ env.TOOLCHAIN_DIR }}/bin/aarch64-none-linux-gnu-g++"
           fi
           rm -rf whisper.cpp/build
           mkdir -p whisper.cpp/build
@@ -162,10 +163,7 @@ jobs:
           if [[ "${{ runner.os }}" == "Windows" ]]; then
             cmake .. ${CMAKE_ARGS} -DCMAKE_TOOLCHAIN_FILE=../../vcpkg/scripts/buildsystems/vcpkg.cmake ${{ matrix.cmake_opts }}
           elif [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
-            cmake .. ${CMAKE_ARGS} \
-              -DCMAKE_C_COMPILER="${{ env.TOOLCHAIN_DIR }}/bin/aarch64-none-linux-gnu-gcc" \
-              -DCMAKE_CXX_COMPILER="${{ env.TOOLCHAIN_DIR }}/bin/aarch64-none-linux-gnu-g++" \
-              ${{ matrix.cmake_opts }}
+            cmake .. ${CMAKE_ARGS} ${{ matrix.cmake_opts }}
           else
             cmake .. ${CMAKE_ARGS} ${{ matrix.cmake_opts }}
           fi
