@@ -117,12 +117,10 @@ jobs:
             set -e
             # Download and set up a self-contained aarch64 toolchain instead of using apt
             TOOLCHAIN_URL="https://developer.arm.com/-/media/Files/downloads/gnu/13.2.rel1/binrel/arm-gnu-toolchain-13.2.rel1-x86_64-aarch64-none-linux-gnu.tar.xz"
-            curl -sL ${TOOLCHAIN_URL} | tar -xJ
+            curl -sL -o toolchain.tar.xz ${TOOLCHAIN_URL}
+            tar -xJf toolchain.tar.xz
+            rm toolchain.tar.xz
             TOOLCHAIN_DIR=${{ github.workspace }}/arm-gnu-toolchain-13.2.rel1-x86_64-aarch64-none-linux-gnu
-            export PKG_CONFIG_PATH="${TOOLCHAIN_DIR}/aarch64-none-linux-gnu/lib/pkgconfig"
-            export PATH=${TOOLCHAIN_DIR}/bin:${PATH}
-            echo "--- Toolchain bin contents ---"
-            ls -la ${TOOLCHAIN_DIR}/bin
             # Build SDL2 from source for arm64, installing it into our toolchain directory
             SDL2_VERSION="2.30.5"
             curl -sL "https://github.com/libsdl-org/SDL/releases/download/release-${SDL2_VERSION}/SDL2-${SDL2_VERSION}.tar.gz" | tar xz
