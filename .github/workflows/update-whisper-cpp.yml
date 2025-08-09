@@ -171,6 +171,7 @@ jobs:
               -DCMAKE_PREFIX_PATH="${{ env.TOOLCHAIN_DIR }}/aarch64-none-linux-gnu" \
               -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
               -DCMAKE_CROSSCOMPILING=TRUE \
+              -DGGML_NO_K_QUANTS=ON \
               ${{ matrix.cmake_opts }}
             # Forcefully remove -march=native from generated Makefiles
             find . -type f -name "*.make" -exec sed -i 's/-march=native//g' {} +
