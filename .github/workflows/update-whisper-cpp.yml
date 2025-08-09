@@ -77,7 +77,7 @@ jobs:
             cmake_opts: ""
           - os: windows-latest
             folder: windows-arm64
-            cmake_opts: "-G \"MinGW Makefiles\""
+            cmake_opts: "-G \"Unix Makefiles\""
           - os: ubuntu-latest
             folder: linux-x86_64
             cmake_opts: ""
@@ -176,7 +176,7 @@ jobs:
           cd SDL2-${SDL2_VERSION}
           rm -rf build
           mkdir build && cd build
-          cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -DSDL_STATIC=ON -DSDL_SHARED=OFF -DCMAKE_INSTALL_PREFIX=${SDL2_DIR}
+          cmake .. -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DSDL_STATIC=ON -DSDL_SHARED=OFF -DCMAKE_INSTALL_PREFIX=${SDL2_DIR}
           make -j$(nproc)
           make install
 
