@@ -136,18 +136,18 @@ jobs:
 
       - name: Install prerequisites (Windows)
         if: runner.os == 'Windows'
-        shell: pwsh # Changed shell to PowerShell
+        shell: bash # Revert shell to bash
         run: |
-          $SDL2_VERSION="2.30.3"
-          if ("${{ matrix.folder }}" -eq "windows-arm64") {
-            $SDL2_ARCH="mingw-arm64" # Changed from arm64
-          } else {
-            $SDL2_ARCH="mingw" # Changed from x64
+          SDL2_VERSION="2.30.3"
+          if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
+            SDL2_ARCH="mingw-arm64"
+          else
+            SDL2_ARCH="mingw"
           }
-          $SDL2_URL="https://github.com/libsdl-org/SDL-builds/releases/download/SDL-${SDL2_VERSION}/SDL2-devel-${SDL2_VERSION}-${SDL2_ARCH}.zip" # Corrected URL
-          Invoke-WebRequest -Uri $SDL2_URL -OutFile SDL2.zip # Changed curl to Invoke-WebRequest
-          Expand-Archive -Path SDL2.zip -DestinationPath . # Changed tar to Expand-Archive
-          echo "SDL2_DIR=$(pwd)/SDL2-devel-${SDL2_VERSION}-${SDL2_ARCH}" >> $env:GITHUB_ENV # Corrected SDL2_DIR path
+          SDL2_URL="https://github.com/libsdl-org/SDL-builds/releases/download/SDL-${SDL2_VERSION}/SDL2-devel-${SDL2_VERSION}-${SDL2_ARCH}.zip"
+          curl -sL -o SDL2.zip "${SDL2_URL}"
+          unzip -q SDL2.zip # Use unzip
+          echo "SDL2_DIR=$(pwd)/SDL2-devel-${SDL2_VERSION}-${SDL2_ARCH}" >> $GITHUB_ENV # Use $GITHUB_ENV for bash
 
       - name: Setup MSYS2 environment (Windows ARM64)
         if: matrix.folder == 'windows-arm64'
