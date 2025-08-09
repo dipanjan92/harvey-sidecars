@@ -112,6 +112,8 @@ jobs:
 
       - name: Install prerequisites (Linux)
         if: runner.os == 'Linux'
+        env:
+          TOOLCHAIN_DIR: ${{ github.workspace }}/arm-gnu-toolchain-13.2.rel1-x86_64-aarch64-none-linux-gnu
         run: |
           if [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
             set -e
@@ -120,16 +122,15 @@ jobs:
             curl -sL -o toolchain.tar.xz ${TOOLCHAIN_URL}
             tar -xJf toolchain.tar.xz
             rm toolchain.tar.xz
-            TOOLCHAIN_DIR=${{ github.workspace }}/arm-gnu-toolchain-13.2.rel1-x86_64-aarch64-none-linux-gnu
             # Build SDL2 from source for arm64, installing it into our toolchain directory
             SDL2_VERSION="2.30.5"
             curl -sL "https://github.com/libsdl-org/SDL/releases/download/release-${SDL2_VERSION}/SDL2-${SDL2_VERSION}.tar.gz" | tar xz
             cd SDL2-${SDL2_VERSION}
             rm -rf build
             mkdir build && cd build
-            cmake .. -DCMAKE_C_COMPILER="${TOOLCHAIN_DIR}/bin/aarch64-none-linux-gnu-gcc" \
-                      -DCMAKE_CXX_COMPILER="${TOOLCHAIN_DIR}/bin/aarch64-none-linux-gnu-g++" \
-                      -DCMAKE_INSTALL_PREFIX="${TOOLCHAIN_DIR}/aarch64-none-linux-gnu" \
+            cmake .. -DCMAKE_C_COMPILER="${{ env.TOOLCHAIN_DIR }}/bin/aarch64-none-linux-gnu-gcc" \
+                      -DCMAKE_CXX_COMPILER="${{ env.TOOLCHAIN_DIR }}/bin/aarch64-none-linux-gnu-g++" \
+                      -DCMAKE_INSTALL_PREFIX="${{ env.TOOLCHAIN_DIR }}/aarch64-none-linux-gnu" \
                       -DSDL_STATIC=ON \
                       -DSDL_SHARED=OFF
             make -j$(nproc)
@@ -144,11 +145,12 @@ jobs:
         run: git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git whisper.cpp
 
       - name: Build whisper-cpp
+        env:
+          TOOLCHAIN_DIR: ${{ github.workspace }}/arm-gnu-toolchain-13.2.rel1-x86_64-aarch64-none-linux-gnu
         run: |
           if [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
-            TOOLCHAIN_DIR=${{ github.workspace }}/arm-gnu-toolchain-13.2.rel1-x86_64-aarch64-none-linux-gnu
-            export PKG_CONFIG_PATH="${TOOLCHAIN_DIR}/aarch64-none-linux-gnu/lib/pkgconfig"
-            export PATH=${TOOLCHAIN_DIR}/bin:${PATH}
+            export PKG_CONFIG_PATH="${{ env.TOOLCHAIN_DIR }}/aarch64-none-linux-gnu/lib/pkgconfig"
+            export PATH=${{ env.TOOLCHAIN_DIR }}/bin:${PATH}
           fi
           rm -rf whisper.cpp/build
           mkdir -p whisper.cpp/build
@@ -160,10 +162,9 @@ jobs:
           if [[ "${{ runner.os }}" == "Windows" ]]; then
             cmake .. ${CMAKE_ARGS} -DCMAKE_TOOLCHAIN_FILE=../../vcpkg/scripts/buildsystems/vcpkg.cmake ${{ matrix.cmake_opts }}
           elif [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
-            TOOLCHAIN_DIR=${{ github.workspace }}/arm-gnu-toolchain-13.2.rel1-x86_64-aarch64-none-linux-gnu
             cmake .. ${CMAKE_ARGS} \
-              -DCMAKE_C_COMPILER="${TOOLCHAIN_DIR}/bin/aarch64-none-linux-gnu-gcc" \
-              -DCMAKE_CXX_COMPILER="${TOOLCHAIN_DIR}/bin/aarch64-none-linux-gnu-g++" \
+              -DCMAKE_C_COMPILER="${{ env.TOOLCHAIN_DIR }}/bin/aarch64-none-linux-gnu-gcc" \
+              -DCMAKE_CXX_COMPILER="${{ env.TOOLCHAIN_DIR }}/bin/aarch64-none-linux-gnu-g++" \
               ${{ matrix.cmake_opts }}
           else
             cmake .. ${CMAKE_ARGS} ${{ matrix.cmake_opts }}
