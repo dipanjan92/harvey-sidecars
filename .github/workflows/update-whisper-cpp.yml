@@ -177,6 +177,8 @@ jobs:
           cd SDL2-${SDL2_VERSION}
           rm -rf build
           mkdir build && cd build
+          export CFLAGS="-I$(pwd)"
+          export CXXFLAGS="-I$(pwd)"
           cmake .. -G "Unix Makefiles" -DCMAKE_SYSTEM_NAME=Windows -DCMAKE_SYSTEM_PROCESSOR=aarch64 -DCMAKE_C_COMPILER=/clang64/bin/clang.exe -DCMAKE_CXX_COMPILER=/clang64/bin/clang++.exe -DCMAKE_BUILD_TYPE=Release -DSDL_STATIC=ON -DSDL_SHARED=OFF -DCMAKE_INSTALL_PREFIX=${SDL2_DIR}
           make -j$(nproc)
           make install
