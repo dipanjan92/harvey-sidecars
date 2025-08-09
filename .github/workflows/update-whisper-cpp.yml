@@ -218,13 +218,8 @@ jobs:
         run: |
           mkdir -p release_assets
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
-              cp whisper.cpp/build/bin/whisper-cli.exe release_assets/whisper-cli.exe
-              cp whisper.cpp/build/bin/whisper-stream.exe release_assets/whisper-stream.exe
-            else
-              cp whisper.cpp/build/bin/Release/whisper-cli.exe release_assets/whisper-cli.exe
-              cp whisper.cpp/build/bin/Release/whisper-stream.exe release_assets/whisper-stream.exe
-            fi
+            cp whisper.cpp/build/bin/Release/whisper-cli.exe release_assets/whisper-cli.exe
+            cp whisper.cpp/build/bin/Release/whisper-stream.exe release_assets/whisper-stream.exe
             cp ${{ env.SDL2_DIR }}/bin/SDL2.dll release_assets/SDL2.dll
           elif [[ "${{ runner.os }}" == "macOS" ]]; then
             cp whisper.cpp/build/bin/Release/whisper-cli release_assets/whisper-cli
