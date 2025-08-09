@@ -80,7 +80,7 @@ jobs:
             cmake_opts: ""
           - os: windows-latest
             folder: windows-arm64
-            cmake_opts: "-A ARM64"
+            cmake_opts: "-G \"Unix Makefiles\""
           - os: ubuntu-latest
             folder: linux-x86_64
             cmake_opts: ""
@@ -98,6 +98,19 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install sdl2
 
+      - name: Setup MSYS2 environment (Windows ARM64)
+        if: matrix.folder == 'windows-arm64'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: CLANGARM64
+          update: true
+          install: >-
+            make
+            cmake
+            mingw-w64-clang-aarch64-toolchain
+            mingw-w64-clang-aarch64-pkg-config
+            mingw-w64-clang-aarch64-zlib
+            mingw-w64-clang-aarch64-libiconv
 
       - name: Install prerequisites (Linux)
         if: runner.os == 'Linux'
@@ -156,13 +169,13 @@ jobs:
                    -DSDL_STATIC=ON \
                    -DSDL_SHARED=OFF \
                    ${{ matrix.cmake_opts }}
-          cmake --build . --config Release
-          cmake --install . --config Release
+          make -j$(nproc)
+          make install
           echo "SDL2_DIR=${{ github.workspace }}/SDL2-install" >> $GITHUB_ENV
           cd ../..
 
       - name: Clone whisper.cpp
-        run: git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git whisper.cpp
+        run: git clone --depth 1 --branch v1.6.2 https://github.com/ggml-org/whisper.cpp.git whisper.cpp
 
       - name: Build whisper-cpp
         run: |
