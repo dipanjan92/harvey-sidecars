@@ -108,10 +108,9 @@ jobs:
             mingw-w64-clang-aarch64-pkg-config
             mingw-w64-clang-aarch64-zlib
             mingw-w64-clang-aarch64-libiconv
-            mingw-w64-clang-aarch64-SDL2
 
       - name: Clone and Bootstrap Vcpkg (Windows)
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && matrix.folder != 'windows-arm64'
         run: |
           git clone https://github.com/microsoft/vcpkg.git
           cd vcpkg
@@ -119,10 +118,12 @@ jobs:
           cd ..
 
       - name: Install prerequisites (Windows)
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && matrix.folder != 'windows-arm64'
         run: |
           cd vcpkg
-          if [[ "${{ matrix.folder }}" != "windows-arm64" ]]; then
+          if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
+            ./vcpkg install sdl2:arm64-windows
+          else
             ./vcpkg install sdl2:x64-windows
           fi
           cd ..
@@ -163,6 +164,21 @@ jobs:
             sudo apt-get install -y libsdl2-dev
           fi
 
+      - name: Build SDL2 from source (Windows ARM64)
+        if: matrix.folder == 'windows-arm64'
+        shell: msys2 {0}
+        run: |
+          SDL2_VERSION="2.30.5"
+          SDL2_DIR="${{ github.workspace }}/SDL2-install"
+          echo "SDL2_DIR=${SDL2_DIR}" >> $GITHUB_ENV
+          curl -sL "https://github.com/libsdl-org/SDL/releases/download/release-${SDL2_VERSION}/SDL2-${SDL2_VERSION}.tar.gz" | tar xz
+          cd SDL2-${SDL2_VERSION}
+          rm -rf build
+          mkdir build && cd build
+          cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -DSDL_STATIC=ON -DSDL_SHARED=OFF -DCMAKE_INSTALL_PREFIX=${SDL2_DIR}
+          make -j$(nproc)
+          make install
+
       - name: Clone whisper.cpp
         run: git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git whisper.cpp
 
@@ -183,7 +199,7 @@ jobs:
             CC=clang CXX=clang++ cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON -DCMAKE_TOOLCHAIN_FILE=../../vcpkg/scripts/buildsystems/vcpkg.cmake ${{ matrix.cmake_opts }}
           elif [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
             # Use clang for windows-arm64
-            cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON 
+            cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON -DCMAKE_PREFIX_PATH=${{ env.SDL2_DIR }} 
               -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ ${{ matrix.cmake_opts }}
           elif [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
             cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON \
@@ -208,7 +224,7 @@ jobs:
             cp whisper.cpp/build/bin/Release/whisper-cli.exe release_assets/whisper-cli.exe
             cp whisper.cpp/build/bin/Release/whisper-stream.exe release_assets/whisper-stream.exe
             if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
-              cp vcpkg/installed/arm64-windows/bin/SDL2.dll release_assets/SDL2.dll
+              cp ${{ env.SDL2_DIR }}/bin/SDL2.dll release_assets/SDL2.dll
             else
               cp vcpkg/installed/x64-windows/bin/SDL2.dll release_assets/SDL2.dll
             fi
