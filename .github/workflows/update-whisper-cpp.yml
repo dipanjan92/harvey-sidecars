@@ -115,6 +115,10 @@ jobs:
             rm toolchain.tar.xz
             echo "Toolchain extracted to: $(ls -d ${TOOLCHAIN_DIR})"
             ls -l ${TOOLCHAIN_DIR}/bin/aarch64-none-linux-gnu-gcc
+            echo "Contents of toolchain bin directory:"
+            ls -l ${TOOLCHAIN_DIR}/bin
+            echo "File type of aarch64-linux-gnu-gcc:"
+            file ${TOOLCHAIN_DIR}/bin/aarch64-linux-gnu-gcc
             echo "TOOLCHAIN_DIR=${TOOLCHAIN_DIR}" >> $GITHUB_ENV # Export TOOLCHAIN_DIR to GITHUB_ENV
             # Build SDL2 from source for arm64, installing it into our toolchain directory
             SDL2_VERSION="2.30.5"
@@ -140,35 +144,21 @@ jobs:
         shell: bash # Revert shell to bash
         run: |
           SDL2_VERSION="2.30.3"
-          if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
-            # Build SDL2 from source for windows-arm64
-            echo "Building SDL2 from source for windows-arm64..."
-            curl -sL "https://github.com/libsdl-org/SDL/releases/download/release-${SDL2_VERSION}/SDL2-${SDL2_VERSION}.tar.gz" | tar xz
-            cd SDL2-${SDL2_VERSION}
-            rm -rf build
-            mkdir build && cd build
-            cmake .. -DCMAKE_BUILD_TYPE=Release \
-                     -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/SDL2-install" \
-                     -DSDL_STATIC=ON \
-                     -DSDL_SHARED=OFF \
-                     -G "Unix Makefiles"
-            make -j$(nproc)
-            make install
-            echo "SDL2_DIR=${{ github.workspace }}/SDL2-install" >> $GITHUB_ENV
-            cd ../..
-          else
-            # Download pre-built SDL2 for windows-x86_64 (mingw)
-            SDL2_ARCH="mingw"
-            SDL2_FILE_EXT="tar.gz"
-            SDL2_EXTRACT_CMD="tar -xzf"
-            SDL2_FILENAME="SDL2-devel-${SDL2_VERSION}-${SDL2_ARCH}.${SDL2_FILE_EXT}"
-            SDL2_URL="https://github.com/libsdl-org/SDL/releases/download/release-${SDL2_VERSION}/${SDL2_FILENAME}"
-            echo "Downloading from: ${SDL2_URL}" # Debugging line
-            curl -fL -o "${SDL2_FILENAME}" "${SDL2_URL}" # Added -f
-            echo "Downloaded file size: $(du -b "${SDL2_FILENAME}" | awk '{print $1}') bytes" # Debugging line
-            ${SDL2_EXTRACT_CMD} "${SDL2_FILENAME}" # Use appropriate extraction command
-            echo "SDL2_DIR=$(pwd)/SDL2-devel-${SDL2_VERSION}-${SDL2_ARCH}" >> $GITHUB_ENV # Use $GITHUB_ENV for bash
-          fi
+          # Build SDL2 from source for both windows-arm64 and windows-x86_64
+          echo "Building SDL2 from source for ${{ matrix.folder }}"...
+          curl -sL "https://github.com/libsdl-org/SDL/releases/download/release-${SDL2_VERSION}/SDL2-${SDL2_VERSION}.tar.gz" | tar xz
+          cd SDL2-${SDL2_VERSION}
+          rm -rf build
+          mkdir build && cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Release \
+                   -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/SDL2-install" \
+                   -DSDL_STATIC=ON \
+                   -DSDL_SHARED=OFF \
+                   -G "Unix Makefiles" # Use Unix Makefiles for both
+          make -j$(nproc)
+          make install
+          echo "SDL2_DIR=${{ github.workspace }}/SDL2-install" >> $GITHUB_ENV
+          cd ../..
 
       - name: Setup MSYS2 environment (Windows ARM64)
         if: matrix.folder == 'windows-arm64'
