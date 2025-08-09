@@ -119,9 +119,13 @@ jobs:
             set -e
             # Download and set up a self-contained aarch64 toolchain instead of using apt
             TOOLCHAIN_URL="https://developer.arm.com/-/media/Files/downloads/gnu/13.2.rel1/binrel/arm-gnu-toolchain-13.2.rel1-x86_64-aarch64-none-linux-gnu.tar.xz"
-            curl -sL -o toolchain.tar.xz ${TOOLCHAIN_URL}
-            tar -xJf toolchain.tar.xz
+            echo "Downloading toolchain from ${TOOLCHAIN_URL}"
+            curl -L -o toolchain.tar.xz ${TOOLCHAIN_URL} || { echo "Failed to download toolchain"; exit 1; }
+            echo "Extracting toolchain..."
+            tar -xJf toolchain.tar.xz || { echo "Failed to extract toolchain"; exit 1; }
             rm toolchain.tar.xz
+            echo "Toolchain extracted to: $(ls -d ${TOOLCHAIN_DIR})"
+            ls -l ${TOOLCHAIN_DIR}/bin/aarch64-none-linux-gnu-gcc
             # Build SDL2 from source for arm64, installing it into our toolchain directory
             SDL2_VERSION="2.30.5"
             curl -sL "https://github.com/libsdl-org/SDL/releases/download/release-${SDL2_VERSION}/SDL2-${SDL2_VERSION}.tar.gz" | tar xz
