@@ -108,6 +108,7 @@ jobs:
             mingw-w64-clang-aarch64-pkg-config
             mingw-w64-clang-aarch64-zlib
             mingw-w64-clang-aarch64-libiconv
+            mingw-w64-clang-aarch64-SDL2
 
       - name: Clone and Bootstrap Vcpkg (Windows)
         if: runner.os == 'Windows'
@@ -121,9 +122,7 @@ jobs:
         if: runner.os == 'Windows'
         run: |
           cd vcpkg
-          if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
-            ./vcpkg install sdl2:arm64-windows
-          else
+          if [[ "${{ matrix.folder }}" != "windows-arm64" ]]; then
             ./vcpkg install sdl2:x64-windows
           fi
           cd ..
@@ -184,7 +183,7 @@ jobs:
             CC=clang CXX=clang++ cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON -DCMAKE_TOOLCHAIN_FILE=../../vcpkg/scripts/buildsystems/vcpkg.cmake ${{ matrix.cmake_opts }}
           elif [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
             # Use clang for windows-arm64
-            cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON -DCMAKE_TOOLCHAIN_FILE=../../vcpkg/scripts/buildsystems/vcpkg.cmake \
+            cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON 
               -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ ${{ matrix.cmake_opts }}
           elif [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
             cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON \
