@@ -123,8 +123,8 @@ jobs:
             # Create a toolchain file for building SDL2
             echo "set(CMAKE_SYSTEM_NAME Linux)" > toolchain-sdl2.cmake
             echo "set(CMAKE_SYSTEM_PROCESSOR aarch64)" >> toolchain-sdl2.cmake
-            echo "set(CMAKE_C_COMPILER aarch64-linux-gnu-gcc)" >> toolchain-sdl2.cmake
-            echo "set(CMAKE_CXX_COMPILER aarch64-linux-gnu-g++)" >> toolchain-sdl2.cmake
+            echo "set(CMAKE_C_COMPILER ${TOOLCHAIN_DIR}/bin/aarch64-linux-gnu-gcc)" >> toolchain-sdl2.cmake
+            echo "set(CMAKE_CXX_COMPILER ${TOOLCHAIN_DIR}/bin/aarch64-linux-gnu-g++)" >> toolchain-sdl2.cmake
             
             # Build SDL2 from source for arm64, installing it into our toolchain directory
             SDL2_VERSION="2.30.5"
@@ -133,8 +133,6 @@ jobs:
             mkdir build && cd build
             cmake .. -DCMAKE_TOOLCHAIN_FILE=../../toolchain-sdl2.cmake \
                       -DCMAKE_INSTALL_PREFIX=${TOOLCHAIN_DIR}/aarch64-linux-gnu \
-                      -DCMAKE_C_COMPILER=${TOOLCHAIN_DIR}/bin/aarch64-linux-gnu-gcc \
-                      -DCMAKE_CXX_COMPILER=${TOOLCHAIN_DIR}/bin/aarch64-linux-gnu-g++ \
                       -DSDL_STATIC=ON \
                       -DSDL_SHARED=OFF
             make -j$(nproc)
