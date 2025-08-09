@@ -115,6 +115,7 @@ jobs:
             rm toolchain.tar.xz
             echo "Toolchain extracted to: $(ls -d ${TOOLCHAIN_DIR})"
             ls -l ${TOOLCHAIN_DIR}/bin/aarch64-none-linux-gnu-gcc
+            echo "TOOLCHAIN_DIR=${TOOLCHAIN_DIR}" >> $GITHUB_ENV # Export TOOLCHAIN_DIR to GITHUB_ENV
             # Build SDL2 from source for arm64, installing it into our toolchain directory
             SDL2_VERSION="2.30.5"
             curl -sL "https://github.com/libsdl-org/SDL/releases/download/release-${SDL2_VERSION}/SDL2-${SDL2_VERSION}.tar.gz" | tar xz
@@ -143,7 +144,7 @@ jobs:
             SDL2_ARCH="mingw-arm64"
           else
             SDL2_ARCH="mingw"
-          }
+          fi # Corrected from }
           SDL2_URL="https://github.com/libsdl-org/SDL-builds/releases/download/SDL-${SDL2_VERSION}/SDL2-devel-${SDL2_VERSION}-${SDL2_ARCH}.zip"
           curl -sL -o SDL2.zip "${SDL2_URL}"
           unzip -q SDL2.zip # Use unzip
