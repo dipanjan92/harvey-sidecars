@@ -120,19 +120,14 @@ jobs:
             curl -sL ${TOOLCHAIN_URL} | tar -xJ
             TOOLCHAIN_DIR=$(pwd)/arm-gnu-toolchain-13.2.rel1-x86_64-aarch64-none-linux-gnu
             
-            # Create a toolchain file for building SDL2
-            echo "set(CMAKE_SYSTEM_NAME Linux)" > toolchain-sdl2.cmake
-            echo "set(CMAKE_SYSTEM_PROCESSOR aarch64)" >> toolchain-sdl2.cmake
-            echo "set(CMAKE_C_COMPILER ${TOOLCHAIN_DIR}/bin/aarch64-linux-gnu-gcc)" >> toolchain-sdl2.cmake
-            echo "set(CMAKE_CXX_COMPILER ${TOOLCHAIN_DIR}/bin/aarch64-linux-gnu-g++)" >> toolchain-sdl2.cmake
-            
             # Build SDL2 from source for arm64, installing it into our toolchain directory
             SDL2_VERSION="2.30.5"
             curl -sL "https://github.com/libsdl-org/SDL/releases/download/release-${SDL2_VERSION}/SDL2-${SDL2_VERSION}.tar.gz" | tar xz
             cd SDL2-${SDL2_VERSION}
             mkdir build && cd build
-            cmake .. -DCMAKE_TOOLCHAIN_FILE=../../toolchain-sdl2.cmake \
-                      -DCMAKE_INSTALL_PREFIX=${TOOLCHAIN_DIR}/aarch64-linux-gnu \
+            cmake .. -DCMAKE_C_COMPILER=${TOOLCHAIN_DIR}/bin/aarch64-none-linux-gnu-gcc \
+                      -DCMAKE_CXX_COMPILER=${TOOLCHAIN_DIR}/bin/aarch64-none-linux-gnu-g++ \
+                      -DCMAKE_INSTALL_PREFIX=${TOOLCHAIN_DIR}/aarch64-none-linux-gnu \
                       -DSDL_STATIC=ON \
                       -DSDL_SHARED=OFF
             make -j$(nproc)
@@ -152,9 +147,9 @@ jobs:
           TOOLCHAIN_DIR=$(pwd)/arm-gnu-toolchain-13.2.rel1-x86_64-aarch64-none-linux-gnu
           echo "set(CMAKE_SYSTEM_NAME Linux)" > whisper.cpp/toolchain-aarch64-linux-gnu.cmake
           echo "set(CMAKE_SYSTEM_PROCESSOR aarch64)" >> whisper.cpp/toolchain-aarch64-linux-gnu.cmake
-          echo "set(CMAKE_C_COMPILER ${TOOLCHAIN_DIR}/bin/aarch64-linux-gnu-gcc)" >> whisper.cpp/toolchain-aarch64-linux-gnu.cmake
-          echo "set(CMAKE_CXX_COMPILER ${TOOLCHAIN_DIR}/bin/aarch64-linux-gnu-g++)" >> whisper.cpp/toolchain-aarch64-linux-gnu.cmake
-          echo "set(CMAKE_FIND_ROOT_PATH ${TOOLCHAIN_DIR}/aarch64-linux-gnu)" >> whisper.cpp/toolchain-aarch64-linux-gnu.cmake
+          echo "set(CMAKE_C_COMPILER ${TOOLCHAIN_DIR}/bin/aarch64-none-linux-gnu-gcc)" >> whisper.cpp/toolchain-aarch64-linux-gnu.cmake
+          echo "set(CMAKE_CXX_COMPILER ${TOOLCHAIN_DIR}/bin/aarch64-none-linux-gnu-g++)" >> whisper.cpp/toolchain-aarch64-linux-gnu.cmake
+          echo "set(CMAKE_FIND_ROOT_PATH ${TOOLCHAIN_DIR}/aarch64-none-linux-gnu)" >> whisper.cpp/toolchain-aarch64-linux-gnu.cmake
           echo "set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)" >> whisper.cpp/toolchain-aarch64-linux-gnu.cmake
           echo "set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)" >> whisper.cpp/toolchain-aarch64-linux-gnu.cmake
           echo "set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)" >> whisper.cpp/toolchain-aarch64-linux-gnu.cmake
@@ -164,7 +159,7 @@ jobs:
         run: |
           if [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
             TOOLCHAIN_DIR=$(pwd)/arm-gnu-toolchain-13.2.rel1-x86_64-aarch64-none-linux-gnu
-            export PKG_CONFIG_PATH=${TOOLCHAIN_DIR}/aarch64-linux-gnu/lib/pkgconfig
+            export PKG_CONFIG_PATH=${TOOLCHAIN_DIR}/aarch64-none-linux-gnu/lib/pkgconfig
             export PATH=${TOOLCHAIN_DIR}/bin:${PATH}
           fi
           mkdir -p whisper.cpp/build
