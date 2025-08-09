@@ -169,8 +169,8 @@ jobs:
               -DCMAKE_C_COMPILER="${{ env.TOOLCHAIN_DIR }}/bin/aarch64-none-linux-gnu-gcc" \
               -DCMAKE_CXX_COMPILER="${{ env.TOOLCHAIN_DIR }}/bin/aarch64-none-linux-gnu-g++" \
               -DCMAKE_PREFIX_PATH="${{ env.TOOLCHAIN_DIR }}/aarch64-none-linux-gnu" \
+              -DCMAKE_SYSTEM_NAME=Linux \
               -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
-              -DCMAKE_CROSSCOMPILING=TRUE \
               -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_EXAMPLES=OFF \
               ${{ matrix.cmake_opts }}
           else
