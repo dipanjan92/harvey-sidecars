@@ -187,12 +187,15 @@ jobs:
           rm -rf whisper.cpp/build
           mkdir -p whisper.cpp/build
           cd whisper.cpp/build
+          INSTALL_PREFIX="${{ github.workspace }}/whisper-cpp-install/${{ matrix.folder }}"
+          mkdir -p "${INSTALL_PREFIX}"
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON -DCMAKE_PREFIX_PATH=${{ env.SDL2_DIR }} ${{ matrix.cmake_opts }}
+            cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON -DCMAKE_PREFIX_PATH=${{ env.SDL2_DIR }} -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" ${{ matrix.cmake_opts }}
             if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
               make -j$(nproc)
+              make install
             else
-              cmake --build . --config Release
+              cmake --build . --config Release --target install
             fi
           elif [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
             export PATH="${{ env.TOOLCHAIN_DIR }}/bin:$PATH" # Add toolchain bin to PATH
@@ -202,14 +205,16 @@ jobs:
               -DCMAKE_CXX_COMPILER="${{ env.TOOLCHAIN_DIR }}/bin/aarch64-none-linux-gnu-g++" \
               -DCMAKE_SYSTEM_NAME=Linux \
               -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
-              ${{ matrix.cmake_opts }}
+              -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" ${{ matrix.cmake_opts }}
             make -j$(nproc)
+            make install
           else # For macOS and linux-x86_64
-            cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON ${{ matrix.cmake_opts }}
+            cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" ${{ matrix.cmake_opts }}
             if [[ "${{ runner.os }}" == "macOS" ]]; then
-              cmake --build . --config Release
+              cmake --build . --config Release --target install
             else # For linux-x86_64
               make -j$(nproc)
+              make install
             fi
           fi
 
@@ -217,13 +222,14 @@ jobs:
         id: prepare_assets
         run: |
           mkdir -p release_assets
+          INSTALL_PREFIX="${{ github.workspace }}/whisper-cpp-install/${{ matrix.folder }}"
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            cp whisper.cpp/bin/main.exe release_assets/whisper-cli.exe
-            cp whisper.cpp/bin/stream.exe release_assets/whisper-stream.exe
+            cp "${INSTALL_PREFIX}/bin/main.exe" release_assets/whisper-cli.exe
+            cp "${INSTALL_PREFIX}/bin/stream.exe" release_assets/whisper-stream.exe
             cp ${{ env.SDL2_DIR }}/bin/SDL2.dll release_assets/SDL2.dll
           else
-            cp whisper.cpp/bin/main release_assets/whisper-cli
-            cp whisper.cpp/bin/stream release_assets/whisper-stream
+            cp "${INSTALL_PREFIX}/bin/main" release_assets/whisper-cli
+            cp "${INSTALL_PREFIX}/bin/stream" release_assets/whisper-stream
           fi
           echo "--- Prepared assets ---"
           ls -lh release_assets
