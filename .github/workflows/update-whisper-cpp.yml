@@ -83,7 +83,7 @@ jobs:
             cmake_opts: ""
           - os: ubuntu-latest
             folder: linux-arm64
-            cmake_opts: "-DGGML_ARM_NEON=ON -DGGML_NATIVE=OFF"
+            cmake_opts: "-DGGML_ARM_NEON=ON -DGGML_NATIVE=OFF -DGGML_USE_SSE=OFF -DGGML_USE_AVX=OFF -DGGML_USE_AVX2=OFF -DGGML_USE_F16C=OFF -DGGML_USE_FMA=OFF -DGGML_USE_BMI2=OFF"
     
     defaults:
       run:
