@@ -150,7 +150,8 @@ jobs:
             cmake .. -DCMAKE_BUILD_TYPE=Release \
                      -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/SDL2-install" \
                      -DSDL_STATIC=ON \
-                     -DSDL_SHARED=OFF
+                     -DSDL_SHARED=OFF \
+                     -G "Unix Makefiles"
             make -j$(nproc)
             make install
             echo "SDL2_DIR=${{ github.workspace }}/SDL2-install" >> $GITHUB_ENV
@@ -161,7 +162,7 @@ jobs:
             SDL2_FILE_EXT="tar.gz"
             SDL2_EXTRACT_CMD="tar -xzf"
             SDL2_FILENAME="SDL2-devel-${SDL2_VERSION}-${SDL2_ARCH}.${SDL2_FILE_EXT}"
-            SDL2_URL="https://github.com/libsdl-org/SDL-builds/releases/download/SDL-${SDL2_VERSION}/${SDL2_FILENAME}"
+            SDL2_URL="https://github.com/libsdl-org/SDL/releases/download/release-${SDL2_VERSION}/${SDL2_FILENAME}"
             echo "Downloading from: ${SDL2_URL}" # Debugging line
             curl -fL -o "${SDL2_FILENAME}" "${SDL2_URL}" # Added -f
             echo "Downloaded file size: $(du -b "${SDL2_FILENAME}" | awk '{print $1}') bytes" # Debugging line
