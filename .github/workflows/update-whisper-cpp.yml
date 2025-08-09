@@ -81,7 +81,8 @@ jobs:
           - os: ubuntu-latest
             folder: linux-x86_64
             cmake_opts: ""
-          folder: linux-arm64
+          - os: ubuntu-latest
+            folder: linux-arm64
             cmake_opts: "-DGGML_ARM_NEON=ON"
     
     defaults:
