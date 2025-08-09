@@ -83,13 +83,12 @@ jobs:
           - os: ubuntu-latest
             folder: linux-x86_64
             cmake_opts: ""
-          - os: ubuntu-latest
+          - os: ubuntu-22.04 # Changed from ubuntu-latest
             folder: linux-arm64
             cmake_opts: ""
     defaults:
       run:
         shell: bash
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -112,17 +111,18 @@ jobs:
 
       - name: Install prerequisites (Windows)
         if: runner.os == 'Windows'
+        shell: pwsh # Changed shell to PowerShell
         run: |
-          SDL2_VERSION="2.30.3"
-          if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
-            SDL2_ARCH="arm64"
-          else
-            SDL2_ARCH="x64"
-          fi
-          SDL2_URL="https://github.com/libsdl-org/SDL-builds/releases/download/SDL-${SDL2_VERSION}/SDL2-${SDL2_VERSION}-win32-${SDL2_ARCH}.zip"
-          curl -sL -o SDL2.zip "${SDL2_URL}"
-          tar -xf SDL2.zip
-          echo "SDL2_DIR=$(pwd)/SDL2-${SDL2_VERSION}" >> $GITHUB_ENV
+          $SDL2_VERSION="2.30.3"
+          if ("${{ matrix.folder }}" -eq "windows-arm64") {
+            $SDL2_ARCH="arm64"
+          } else {
+            $SDL2_ARCH="x64"
+          }
+          $SDL2_URL="https://github.com/libsdl-org/SDL-builds/releases/download/SDL-${SDL2_VERSION}/SDL2-${SDL2_VERSION}-win32-${SDL2_ARCH}.zip"
+          Invoke-WebRequest -Uri $SDL2_URL -OutFile SDL2.zip # Changed curl to Invoke-WebRequest
+          Expand-Archive -Path SDL2.zip -DestinationPath . # Changed tar to Expand-Archive
+          echo "SDL2_DIR=$(pwd)/SDL2-${SDL2_VERSION}" >> $env:GITHUB_ENV # Changed $GITHUB_ENV to $env:GITHUB_ENV
 
       - name: Setup MSYS2 environment (Windows ARM64)
         if: matrix.folder == 'windows-arm64'
