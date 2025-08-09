@@ -97,8 +97,20 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install sdl2
 
+      - name: Setup MSYS2 environment (Windows)
+        if: runner.os == 'Windows' && matrix.folder == 'windows-arm64'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: CLANG64
+          update: true
+          install: >-
+            make
+            mingw-w64-clang-aarch64-pkg-config
+            mingw-w64-clang-aarch64-zlib
+            mingw-w64-clang-aarch64-libiconv
+
       - name: Install prerequisites (Windows)
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && matrix.folder != 'windows-arm64'
         run: |
           git clone https://github.com/microsoft/vcpkg.git
           cd vcpkg
@@ -162,8 +174,11 @@ jobs:
           
           # Common CMake arguments (inlined below)
 
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
+          if [[ "${{ matrix.folder }}" == "windows-x86_64" ]]; then
             cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON -DCMAKE_TOOLCHAIN_FILE=../../vcpkg/scripts/buildsystems/vcpkg.cmake ${{ matrix.cmake_opts }}
+          elif [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
+            # Use clang for windows-arm64
+            CC=clang CXX=clang++ cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON -DCMAKE_TOOLCHAIN_FILE=../../vcpkg/scripts/buildsystems/vcpkg.cmake ${{ matrix.cmake_opts }}
           elif [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
             cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON \
               -DCMAKE_C_COMPILER="${{ env.TOOLCHAIN_DIR }}/bin/aarch64-none-linux-gnu-gcc" \
