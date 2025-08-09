@@ -122,7 +122,8 @@ jobs:
             echo "Downloading toolchain from ${TOOLCHAIN_URL}"
             curl -L -o toolchain.tar.xz ${TOOLCHAIN_URL} || { echo "Failed to download toolchain"; exit 1; }
             echo "Extracting toolchain..."
-            tar -xJf toolchain.tar.xz || { echo "Failed to extract toolchain"; exit 1; }
+            mkdir -p ${TOOLCHAIN_DIR} || { echo "Failed to create TOOLCHAIN_DIR"; exit 1; }
+            tar -xJf toolchain.tar.xz -C ${TOOLCHAIN_DIR} --strip-components=1 || { echo "Failed to extract toolchain"; exit 1; }
             rm toolchain.tar.xz
             echo "Toolchain extracted to: $(ls -d ${TOOLCHAIN_DIR})"
             ls -l ${TOOLCHAIN_DIR}/bin/aarch64-none-linux-gnu-gcc
