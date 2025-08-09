@@ -109,18 +109,22 @@ jobs:
             mingw-w64-clang-aarch64-zlib
             mingw-w64-clang-aarch64-libiconv
 
-      - name: Install prerequisites (Windows)
-        if: runner.os == 'Windows' && matrix.folder != 'windows-arm64'
+      - name: Clone and Bootstrap Vcpkg (Windows)
+        if: runner.os == 'Windows'
         run: |
           git clone https://github.com/microsoft/vcpkg.git
           cd vcpkg
           ./bootstrap-vcpkg.bat
+          cd ..
+
+      - name: Install prerequisites (Windows)
+        if: runner.os == 'Windows'
+        run: |
           if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
             ./vcpkg install sdl2:arm64-windows
           else
             ./vcpkg install sdl2:x64-windows
           fi
-          cd ..
 
       - name: Install prerequisites (Linux)
         if: runner.os == 'Linux'
