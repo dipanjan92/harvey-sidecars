@@ -176,7 +176,7 @@ jobs:
           cd SDL2-${SDL2_VERSION}
           rm -rf build
           mkdir build && cd build
-          cmake .. -G "Unix Makefiles" -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release -DSDL_STATIC=ON -DSDL_SHARED=OFF -DCMAKE_INSTALL_PREFIX=${SDL2_DIR}
+          cmake .. -G "Unix Makefiles" -DCMAKE_C_COMPILER=/clang64/bin/clang -DCMAKE_CXX_COMPILER=/clang64/bin/clang++ -DCMAKE_BUILD_TYPE=Release -DSDL_STATIC=ON -DSDL_SHARED=OFF -DCMAKE_INSTALL_PREFIX=${SDL2_DIR}
           make -j$(nproc)
           make install
 
