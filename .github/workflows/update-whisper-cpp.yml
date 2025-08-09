@@ -169,6 +169,8 @@ jobs:
         if: matrix.folder == 'windows-arm64'
         shell: msys2 {0}
         run: |
+          C_COMPILER_PATH=$(which clang)
+          CXX_COMPILER_PATH=$(which clang++)
           SDL2_VERSION="2.30.5"
           SDL2_DIR="${{ github.workspace }}/SDL2-install"
           echo "SDL2_DIR=${SDL2_DIR}" >> $GITHUB_ENV
@@ -176,7 +178,7 @@ jobs:
           cd SDL2-${SDL2_VERSION}
           rm -rf build
           mkdir build && cd build
-          cmake .. -G "Unix Makefiles" -DCMAKE_C_COMPILER=/clang64/bin/clang -DCMAKE_CXX_COMPILER=/clang64/bin/clang++ -DCMAKE_BUILD_TYPE=Release -DSDL_STATIC=ON -DSDL_SHARED=OFF -DCMAKE_INSTALL_PREFIX=${SDL2_DIR}
+          cmake .. -G "Unix Makefiles" -DCMAKE_C_COMPILER=${C_COMPILER_PATH} -DCMAKE_CXX_COMPILER=${CXX_COMPILER_PATH} -DCMAKE_BUILD_TYPE=Release -DSDL_STATIC=ON -DSDL_SHARED=OFF -DCMAKE_INSTALL_PREFIX=${SDL2_DIR}
           make -j$(nproc)
           make install
 
