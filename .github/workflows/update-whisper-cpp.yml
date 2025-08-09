@@ -83,7 +83,7 @@ jobs:
           - os: ubuntu-latest
             folder: linux-x86_64
             cmake_opts: ""
-          - os: ubuntu-22.04 # Changed from ubuntu-latest
+          - os: ubuntu-latest # Changed from ubuntu-22.04
             folder: linux-arm64
             cmake_opts: ""
     defaults:
@@ -99,13 +99,37 @@ jobs:
 
       - name: Install prerequisites (Linux)
         if: runner.os == 'Linux'
+        env:
+          TOOLCHAIN_DIR: ${{ github.workspace }}/arm-gnu-toolchain-13.2.rel1-x86_64-aarch64-none-linux-gnu
         run: |
           if [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
-            sudo dpkg --add-architecture arm64
-            sudo apt-get update
-            sudo apt-get install -y libsdl2-dev:arm64
+            set -e
+            # Download and set up a self-contained aarch64 toolchain instead of using apt
+            TOOLCHAIN_URL="https://developer.arm.com/-/media/Files/downloads/gnu/13.2.rel1/binrel/arm-gnu-toolchain-13.2.rel1-x86_64-aarch64-none-linux-gnu.tar.xz"
+            echo "Downloading toolchain from ${TOOLCHAIN_URL}"
+            curl -L -o toolchain.tar.xz ${TOOLCHAIN_URL} || { echo "Failed to download toolchain"; exit 1; }
+            echo "Extracting toolchain..."
+            mkdir -p ${TOOLCHAIN_DIR} || { echo "Failed to create TOOLCHAIN_DIR"; exit 1; }
+            tar -xJf toolchain.tar.xz -C ${TOOLCHAIN_DIR} --strip-components=1 || { echo "Failed to extract toolchain"; exit 1; }
+            rm toolchain.tar.xz
+            echo "Toolchain extracted to: $(ls -d ${TOOLCHAIN_DIR})"
+            ls -l ${TOOLCHAIN_DIR}/bin/aarch64-none-linux-gnu-gcc
+            # Build SDL2 from source for arm64, installing it into our toolchain directory
+            SDL2_VERSION="2.30.5"
+            curl -sL "https://github.com/libsdl-org/SDL/releases/download/release-${SDL2_VERSION}/SDL2-${SDL2_VERSION}.tar.gz" | tar xz
+            cd SDL2-${SDL2_VERSION}
+            rm -rf build
+            mkdir build && cd build
+            cmake .. -DCMAKE_C_COMPILER="${{ env.TOOLCHAIN_DIR }}/bin/aarch64-none-linux-gnu-gcc" \
+                      -DCMAKE_CXX_COMPILER="${{ env.TOOLCHAIN_DIR }}/bin/aarch64-none-linux-gnu-g++" \
+                      -DCMAKE_INSTALL_PREFIX="${{ env.TOOLCHAIN_DIR }}/aarch64-none-linux-gnu" \
+                      -DSDL_STATIC=ON \
+                      -DSDL_SHARED=OFF
+            make -j$(nproc)
+            make install
+            cd ../..
           else
-            sudo apt-get update
+            sudo apt-get update -y
             sudo apt-get install -y libsdl2-dev
           fi
 
@@ -115,14 +139,14 @@ jobs:
         run: |
           $SDL2_VERSION="2.30.3"
           if ("${{ matrix.folder }}" -eq "windows-arm64") {
-            $SDL2_ARCH="arm64"
+            $SDL2_ARCH="mingw-arm64" # Changed from arm64
           } else {
-            $SDL2_ARCH="x64"
+            $SDL2_ARCH="mingw" # Changed from x64
           }
-          $SDL2_URL="https://github.com/libsdl-org/SDL-builds/releases/download/SDL-${SDL2_VERSION}/SDL2-${SDL2_VERSION}-win32-${SDL2_ARCH}.zip"
+          $SDL2_URL="https://github.com/libsdl-org/SDL-builds/releases/download/SDL-${SDL2_VERSION}/SDL2-devel-${SDL2_VERSION}-${SDL2_ARCH}.zip" # Corrected URL
           Invoke-WebRequest -Uri $SDL2_URL -OutFile SDL2.zip # Changed curl to Invoke-WebRequest
           Expand-Archive -Path SDL2.zip -DestinationPath . # Changed tar to Expand-Archive
-          echo "SDL2_DIR=$(pwd)/SDL2-${SDL2_VERSION}" >> $env:GITHUB_ENV # Changed $GITHUB_ENV to $env:GITHUB_ENV
+          echo "SDL2_DIR=$(pwd)/SDL2-devel-${SDL2_VERSION}-${SDL2_ARCH}" >> $env:GITHUB_ENV # Corrected SDL2_DIR path
 
       - name: Setup MSYS2 environment (Windows ARM64)
         if: matrix.folder == 'windows-arm64'
@@ -149,6 +173,7 @@ jobs:
           if [[ "${{ runner.os }}" == "Windows" ]]; then
             cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON -DCMAKE_PREFIX_PATH=${{ env.SDL2_DIR }} ${{ matrix.cmake_opts }}
           elif [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
+            export PKG_CONFIG_PATH="${{ env.TOOLCHAIN_DIR }}/aarch64-none-linux-gnu/lib/pkgconfig"
             cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON \
               -DCMAKE_C_COMPILER="aarch64-linux-gnu-gcc" \
               -DCMAKE_CXX_COMPILER="aarch64-linux-gnu-g++" \
