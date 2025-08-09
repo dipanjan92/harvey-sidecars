@@ -141,16 +141,33 @@ jobs:
         run: |
           SDL2_VERSION="2.30.3"
           if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
-            SDL2_ARCH="mingw-arm64"
+            # Build SDL2 from source for windows-arm64
+            echo "Building SDL2 from source for windows-arm64..."
+            curl -sL "https://github.com/libsdl-org/SDL/releases/download/release-${SDL2_VERSION}/SDL2-${SDL2_VERSION}.tar.gz" | tar xz
+            cd SDL2-${SDL2_VERSION}
+            rm -rf build
+            mkdir build && cd build
+            cmake .. -DCMAKE_BUILD_TYPE=Release \
+                     -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/SDL2-install" \
+                     -DSDL_STATIC=ON \
+                     -DSDL_SHARED=OFF
+            make -j$(nproc)
+            make install
+            echo "SDL2_DIR=${{ github.workspace }}/SDL2-install" >> $GITHUB_ENV
+            cd ../..
           else
+            # Download pre-built SDL2 for windows-x86_64 (mingw)
             SDL2_ARCH="mingw"
-          fi # Corrected from }
-          SDL2_URL="https://github.com/libsdl-org/SDL-builds/releases/download/SDL-${SDL2_VERSION}/SDL2-devel-${SDL2_VERSION}-${SDL2_ARCH}.zip"
-          echo "Downloading from: ${SDL2_URL}" # Debugging line
-          curl -fL -o SDL2.zip "${SDL2_URL}" # Added -f
-          echo "Downloaded file size: $(du -b SDL2.zip | awk '{print $1}') bytes" # Debugging line
-          unzip -q SDL2.zip # Use unzip
-          echo "SDL2_DIR=$(pwd)/SDL2-devel-${SDL2_VERSION}-${SDL2_ARCH}" >> $GITHUB_ENV # Use $GITHUB_ENV for bash
+            SDL2_FILE_EXT="tar.gz"
+            SDL2_EXTRACT_CMD="tar -xzf"
+            SDL2_FILENAME="SDL2-devel-${SDL2_VERSION}-${SDL2_ARCH}.${SDL2_FILE_EXT}"
+            SDL2_URL="https://github.com/libsdl-org/SDL-builds/releases/download/SDL-${SDL2_VERSION}/${SDL2_FILENAME}"
+            echo "Downloading from: ${SDL2_URL}" # Debugging line
+            curl -fL -o "${SDL2_FILENAME}" "${SDL2_URL}" # Added -f
+            echo "Downloaded file size: $(du -b "${SDL2_FILENAME}" | awk '{print $1}') bytes" # Debugging line
+            ${SDL2_EXTRACT_CMD} "${SDL2_FILENAME}" # Use appropriate extraction command
+            echo "SDL2_DIR=$(pwd)/SDL2-devel-${SDL2_VERSION}-${SDL2_ARCH}" >> $GITHUB_ENV # Use $GITHUB_ENV for bash
+          fi
 
       - name: Setup MSYS2 environment (Windows ARM64)
         if: matrix.folder == 'windows-arm64'
