@@ -108,6 +108,7 @@ jobs:
             mingw-w64-clang-aarch64-pkg-config
             mingw-w64-clang-aarch64-zlib
             mingw-w64-clang-aarch64-libiconv
+            mingw-w64-clang-aarch64-cmake
 
       - name: Clone and Bootstrap Vcpkg (Windows)
         if: runner.os == 'Windows' && matrix.folder != 'windows-arm64'
