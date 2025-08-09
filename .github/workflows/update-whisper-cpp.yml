@@ -198,8 +198,8 @@ jobs:
             export PATH="${{ env.TOOLCHAIN_DIR }}/bin:$PATH" # Add toolchain bin to PATH
             export PKG_CONFIG_PATH="${{ env.TOOLCHAIN_DIR }}/aarch64-none-linux-gnu/lib/pkgconfig"
             cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON \
-              -DCMAKE_C_COMPILER="aarch64-linux-gnu-gcc" \
-              -DCMAKE_CXX_COMPILER="aarch64-linux-gnu-g++" \
+              -DCMAKE_C_COMPILER="${{ env.TOOLCHAIN_DIR }}/bin/aarch64-linux-gnu-gcc" \
+              -DCMAKE_CXX_COMPILER="${{ env.TOOLCHAIN_DIR }}/bin/aarch64-linux-gnu-g++" \
               -DCMAKE_SYSTEM_NAME=Linux \
               -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
               ${{ matrix.cmake_opts }}
