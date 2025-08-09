@@ -62,6 +62,8 @@ jobs:
     name: Build & Upload Binaries
     needs: create-release
     runs-on: ${{ matrix.os }}
+    env: 
+      SDL2_DIR: "" # Initialize SDL2_DIR to avoid static analysis warnings
     strategy:
       fail-fast: false
       matrix:
@@ -84,8 +86,7 @@ jobs:
           - os: ubuntu-latest
             folder: linux-arm64
             cmake_opts: ""
-    
-defaults:
+    defaults:
       run:
         shell: bash
 
@@ -120,8 +121,8 @@ defaults:
           fi
           SDL2_URL="https://github.com/libsdl-org/SDL-builds/releases/download/SDL-${SDL2_VERSION}/SDL2-${SDL2_VERSION}-win32-${SDL2_ARCH}.zip"
           curl -sL -o SDL2.zip "${SDL2_URL}"
-unzip -q SDL2.zip
-echo "SDL2_DIR=$(pwd)/SDL2-${SDL2_VERSION}" >> $GITHUB_ENV
+          tar -xf SDL2.zip
+          echo "SDL2_DIR=$(pwd)/SDL2-${SDL2_VERSION}" >> $GITHUB_ENV
 
       - name: Setup MSYS2 environment (Windows ARM64)
         if: matrix.folder == 'windows-arm64'
@@ -145,10 +146,9 @@ echo "SDL2_DIR=$(pwd)/SDL2-${SDL2_VERSION}" >> $GITHUB_ENV
           rm -rf whisper.cpp/build
           mkdir -p whisper.cpp/build
           cd whisper.cpp/build
-          
           if [[ "${{ runner.os }}" == "Windows" ]]; then
             cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON -DCMAKE_PREFIX_PATH=${{ env.SDL2_DIR }} ${{ matrix.cmake_opts }}
-elif [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
+          elif [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
             cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON \
               -DCMAKE_C_COMPILER="aarch64-linux-gnu-gcc" \
               -DCMAKE_CXX_COMPILER="aarch64-linux-gnu-g++" \
@@ -158,7 +158,6 @@ elif [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
           else
             cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON ${{ matrix.cmake_opts }}
           fi
-          
           cmake --build . --config Release
 
       - name: Prepare assets for release
