@@ -172,6 +172,8 @@ jobs:
               -DCMAKE_PREFIX_PATH="${{ env.TOOLCHAIN_DIR }}/aarch64-none-linux-gnu" \
               -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
               -DCMAKE_CROSSCOMPILING=TRUE \
+              -DCMAKE_C_FLAGS="-march=armv8-a" \
+              -DCMAKE_CXX_FLAGS="-march=armv8-a" \
               ${{ matrix.cmake_opts }}
           else
             cmake .. ${CMAKE_ARGS} ${{ matrix.cmake_opts }}
