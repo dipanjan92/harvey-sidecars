@@ -146,7 +146,9 @@ jobs:
             SDL2_ARCH="mingw"
           fi # Corrected from }
           SDL2_URL="https://github.com/libsdl-org/SDL-builds/releases/download/SDL-${SDL2_VERSION}/SDL2-devel-${SDL2_VERSION}-${SDL2_ARCH}.zip"
-          curl -sL -o SDL2.zip "${SDL2_URL}"
+          echo "Downloading from: ${SDL2_URL}" # Debugging line
+          curl -fL -o SDL2.zip "${SDL2_URL}" # Added -f
+          echo "Downloaded file size: $(du -b SDL2.zip | awk '{print $1}') bytes" # Debugging line
           unzip -q SDL2.zip # Use unzip
           echo "SDL2_DIR=$(pwd)/SDL2-devel-${SDL2_VERSION}-${SDL2_ARCH}" >> $GITHUB_ENV # Use $GITHUB_ENV for bash
 
