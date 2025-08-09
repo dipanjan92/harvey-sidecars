@@ -64,6 +64,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     env: 
       SDL2_DIR: "" # Initialize SDL2_DIR to avoid static analysis warnings
+      TOOLCHAIN_DIR: "" # Initialize TOOLCHAIN_DIR to avoid static analysis warnings
     strategy:
       fail-fast: false
       matrix:
@@ -83,7 +84,7 @@ jobs:
           - os: ubuntu-latest
             folder: linux-x86_64
             cmake_opts: ""
-          - os: ubuntu-latest # Changed from ubuntu-22.04
+          - os: ubuntu-latest
             folder: linux-arm64
             cmake_opts: ""
     defaults:
