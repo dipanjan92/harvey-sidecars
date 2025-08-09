@@ -81,8 +81,7 @@ jobs:
           - os: ubuntu-latest
             folder: linux-x86_64
             cmake_opts: ""
-          - os: ubuntu-latest
-            folder: linux-arm64
+          folder: linux-arm64
             cmake_opts: "-DGGML_ARM_NEON=ON"
     
     defaults:
@@ -170,10 +169,6 @@ jobs:
               -DCMAKE_C_COMPILER="${{ env.TOOLCHAIN_DIR }}/bin/aarch64-none-linux-gnu-gcc" \
               -DCMAKE_CXX_COMPILER="${{ env.TOOLCHAIN_DIR }}/bin/aarch64-none-linux-gnu-g++" \
               -DCMAKE_PREFIX_PATH="${{ env.TOOLCHAIN_DIR }}/aarch64-none-linux-gnu" \
-              -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
-              -DCMAKE_CROSSCOMPILING=TRUE \
-              -DCMAKE_C_FLAGS="-march=armv8-a" \
-              -DCMAKE_CXX_FLAGS="-march=armv8-a" \
               ${{ matrix.cmake_opts }}
           else
             cmake .. ${CMAKE_ARGS} ${{ matrix.cmake_opts }}
