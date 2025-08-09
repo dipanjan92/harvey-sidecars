@@ -106,6 +106,7 @@ jobs:
           install: >-
             make
             cmake
+            mingw-w64-clang-aarch64-toolchain
             mingw-w64-clang-aarch64-pkg-config
             mingw-w64-clang-aarch64-zlib
             mingw-w64-clang-aarch64-libiconv
