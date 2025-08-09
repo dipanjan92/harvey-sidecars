@@ -83,7 +83,7 @@ jobs:
             cmake_opts: ""
           - os: ubuntu-latest
             folder: linux-arm64
-            cmake_opts: "-DCMAKE_TOOLCHAIN_FILE=../toolchain-aarch64-linux-gnu.cmake"
+            cmake_opts: "-DCMAKE_TOOLCHAIN_FILE=../toolchain-aarch64-linux-gnu.cmake -DGGML_ARM_NEON=ON"
     
     defaults:
       run:
