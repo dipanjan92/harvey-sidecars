@@ -175,6 +175,12 @@ jobs:
             --hidden-import=pyannote.audio.models.embedding \
             --exclude-module torch.cuda \
             --exclude-module torch.backends.cudnn \
+            --exclude-binaries libcudart.so \
+            --exclude-binaries libcuda.so \
+            --exclude-binaries libnvrtc.so \
+            --exclude-binaries libcublas.so \
+            --exclude-binaries libcudnn.so \
+            --exclude-binaries libnvinfer.so \
             diarize-cli/diarize_cli.py
 
           echo "--- Size of dist directory (Linux only) ---"
