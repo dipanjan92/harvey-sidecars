@@ -195,7 +195,7 @@ jobs:
               make -j$(nproc)
               make install
             else
-              cmake --build . --config Release --target install
+              cmake --build . --config Release --target main --target stream
             fi
           elif [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
             export PATH="${{ env.TOOLCHAIN_DIR }}/bin:$PATH" # Add toolchain bin to PATH
@@ -231,8 +231,8 @@ jobs:
           mkdir -p release_assets
           INSTALL_PREFIX="${{ github.workspace }}/whisper-cpp-install/${{ matrix.folder }}"
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            cp "whisper.cpp/build/Release/main.exe" release_assets/whisper-cli.exe
-            cp "whisper.cpp/build/Release/stream.exe" release_assets/whisper-stream.exe
+            cp "whisper.cpp/build/bin/main.exe" release_assets/whisper-cli.exe
+            cp "whisper.cpp/build/bin/stream.exe" release_assets/whisper-stream.exe
             cp ${{ env.SDL2_DIR }}/bin/SDL2.dll release_assets/SDL2.dll
           else
             cp "whisper.cpp/build/bin/main" release_assets/whisper-cli
