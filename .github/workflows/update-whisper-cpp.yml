@@ -280,7 +280,7 @@ jobs:
             sha256sum "${CLI_ASSET}" > "${CLI_ASSET}.sha256"
             sha256sum "${STREAM_ASSET}" > "${STREAM_ASSET}.sha256"
             
-            gh release upload ${{ needs.create-release.outputs.release_tag }} "${CLI_ASSET}" "${CLI_ASSET}.sha256" "${STREAM_ASSET}" "${STREAM_ASSET}.sha256" SDL2.dll --clobber
+            gh release upload ${{ needs.create-release.outputs.release_tag }} "${CLI_ASSET}" "${CLI_ASSET}.sha256" "${STREAM_ASSET}" "${STREAM_ASSET}.sha256" "SDL2-${{ matrix.folder }}.dll" --clobber
           else
             CLI_ASSET="whisper-cli-${{ matrix.folder }}"
             STREAM_ASSET="whisper-stream-${{ matrix.folder }}"
