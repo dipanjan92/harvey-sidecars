@@ -242,7 +242,7 @@ jobs:
           if [[ "${{ runner.os }}" == "Windows" ]]; then
             cp "whisper.cpp/build/bin/main.exe" release_assets/whisper-cli.exe
             cp "whisper.cpp/build/bin/stream.exe" release_assets/whisper-stream.exe
-            cp ${{ env.SDL2_DIR }}/bin/SDL2.dll release_assets/SDL2.dll
+            cp "${{ env.SDL2_DIR }}/bin/SDL2.dll" release_assets/SDL2.dll
           else
             cp "whisper.cpp/build/bin/main" release_assets/whisper-cli
             cp "whisper.cpp/build/bin/stream" release_assets/whisper-stream
