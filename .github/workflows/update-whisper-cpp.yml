@@ -219,7 +219,6 @@ jobs:
           fi
 
       - name: List installed whisper-cpp files (Debug)
-        if: runner.os == 'Windows' && matrix.folder == 'windows-arm64'
         run: |
           INSTALL_PREFIX="${{ github.workspace }}/whisper-cpp-install/${{ matrix.folder }}"
           echo "Listing contents of ${INSTALL_PREFIX}:"
@@ -231,8 +230,8 @@ jobs:
           mkdir -p release_assets
           INSTALL_PREFIX="${{ github.workspace }}/whisper-cpp-install/${{ matrix.folder }}"
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            cp "${INSTALL_PREFIX}/bin/main.exe" release_assets/whisper-cli.exe
-            cp "${INSTALL_PREFIX}/bin/stream.exe" release_assets/whisper-stream.exe
+            cp "whisper.cpp/build/bin/Release/main.exe" release_assets/whisper-cli.exe
+            cp "whisper.cpp/build/bin/Release/stream.exe" release_assets/whisper-stream.exe
             cp ${{ env.SDL2_DIR }}/bin/SDL2.dll release_assets/SDL2.dll
           else
             cp "${INSTALL_PREFIX}/bin/main" release_assets/whisper-cli
