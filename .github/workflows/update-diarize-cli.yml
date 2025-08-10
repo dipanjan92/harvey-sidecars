@@ -104,6 +104,11 @@ jobs:
             done
           fi
 
+          echo "--- Size of diarize-cli/models (Linux only) ---"
+          if [[ "${{ runner.os }}" == "Linux" ]]; then
+            du -sh diarize-cli/models
+          fi
+
       # Step 6: Generate Matplotlib font cache
       - name: Generate Matplotlib font cache
         run: |
@@ -134,6 +139,11 @@ jobs:
             fi
           fi
 
+          echo "--- Size of diarize-cli/resources/.matplotlib (Linux only) ---"
+          if [[ "${{ runner.os }}" == "Linux" ]]; then
+            du -sh diarize-cli/resources/.matplotlib
+          fi
+
       # Step 8: Locate Lightning-Fabric and SpeechBrain paths
       - name: Locate Lightning-Fabric and SpeechBrain paths
         run: |
@@ -156,6 +166,12 @@ jobs:
             --hidden-import=pyannote.audio.models.segmentation \
             --hidden-import=pyannote.audio.models.embedding \
             diarize-cli/diarize_cli.py
+
+          echo "--- Size of dist directory (Linux only) ---"
+          if [[ "${{ runner.os }}" == "Linux" ]]; then
+            du -sh dist
+            ls -lh dist
+          fi
 
       # Step 10: Prepare assets for upload by renaming the binary
       - name: Prepare assets for upload
