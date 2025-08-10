@@ -70,6 +70,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install "numpy<2.0"
+          pip install torch==2.3.0+cpu torchvision==0.18.0+cpu torchaudio==2.3.0+cpu --index-url https://download.pytorch.org/whl/cpu
           pip install pyannote.audio huggingface_hub pyinstaller matplotlib lightning_fabric speechbrain
 
       - name: Log PyTorch/Torchaudio installation sizes (Linux only)
@@ -173,20 +174,6 @@ jobs:
             --hidden-import=pyannote.audio.models \
             --hidden-import=pyannote.audio.models.segmentation \
             --hidden-import=pyannote.audio.models.embedding \
-            --exclude-module nvidia.cuda_nvrtc \
-            --exclude-module nvidia.cuda_runtime \
-            --exclude-module nvidia.cuda_cupti \
-            --exclude-module nvidia.cudnn \
-            --exclude-module nvidia.cublas \
-            --exclude-module nvidia.cufft \
-            --exclude-module nvidia.curand \
-            --exclude-module nvidia.cusolver \
-            --exclude-module nvidia.cusparse \
-            --exclude-module nvidia.cusparselt \
-            --exclude-module nvidia.nccl \
-            --exclude-module nvidia.nvtx \
-            --exclude-module nvidia.nvjitlink \
-            --exclude-module nvidia.cufile \
             diarize-cli/diarize_cli.py
 
           echo "--- Size of dist directory (Linux only) ---"
