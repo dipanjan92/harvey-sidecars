@@ -25,3 +25,4 @@ cmake .. ${CMAKE_ARGS} \
   ${CMAKE_OPTS}
 
 cmake --build . --config Release
+

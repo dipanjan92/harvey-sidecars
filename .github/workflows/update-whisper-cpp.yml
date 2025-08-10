@@ -218,6 +218,13 @@ jobs:
             fi
           fi
 
+      - name: List installed whisper-cpp files (Debug)
+        if: runner.os == 'Windows' && matrix.folder == 'windows-arm64'
+        run: |
+          INSTALL_PREFIX="${{ github.workspace }}/whisper-cpp-install/${{ matrix.folder }}"
+          echo "Listing contents of ${INSTALL_PREFIX}:"
+          ls -R "${INSTALL_PREFIX}" || true
+
       - name: Prepare assets for release
         id: prepare_assets
         run: |
