@@ -173,6 +173,8 @@ jobs:
             --hidden-import=pyannote.audio.models \
             --hidden-import=pyannote.audio.models.segmentation \
             --hidden-import=pyannote.audio.models.embedding \
+            --exclude-module torch.cuda \
+            --exclude-module torch.backends.cudnn \
             diarize-cli/diarize_cli.py
 
           echo "--- Size of dist directory (Linux only) ---"
