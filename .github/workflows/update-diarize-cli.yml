@@ -72,6 +72,14 @@ jobs:
           pip install "numpy<2.0"
           pip install pyannote.audio huggingface_hub pyinstaller matplotlib lightning_fabric speechbrain
 
+      - name: Log PyTorch/Torchaudio installation sizes (Linux only)
+        if: runner.os == 'Linux'
+        run: |
+          echo "--- Size of site-packages/torch ---"
+          du -sh $(python3 -c "import torch, os; print(os.path.dirname(torch.__file__))")
+          echo "--- Size of site-packages/torchaudio ---"
+          du -sh $(python3 -c "import torchaudio, os; print(os.path.dirname(torchaudio.__file__))")
+
       # Step 4: Log in to Hugging Face CLI
       - name: Log in to Hugging Face
         run: hf auth login --token "$HUGGINGFACE_TOKEN"
