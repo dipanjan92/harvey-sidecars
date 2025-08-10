@@ -216,8 +216,8 @@ jobs:
               cmake .. ${CMAKE_COMMON_FLAGS} -G "Unix Makefiles" -DCMAKE_CXX_STANDARD=17 -DCMAKE_CXX_STANDARD_REQUIRED=ON -DCMAKE_CXX_FLAGS="-std=c++17" -DCMAKE_PREFIX_PATH=${{ env.SDL2_DIR }}
               make -j$(nproc)
               make install
-            else # For windows-x86_64 (MSVC)
-              cmake .. ${CMAKE_COMMON_FLAGS} -DCMAKE_CXX_STANDARD=17 -DCMAKE_CXX_STANDARD_REQUIRED=ON -DCMAKE_CXX_FLAGS="-std=c++17" -DCMAKE_PREFIX_PATH=${{ env.SDL2_DIR }}
+            else # For windows-x86_64 (MinGW/Clang)
+              cmake .. ${CMAKE_COMMON_FLAGS} -G "Unix Makefiles" -DCMAKE_CXX_STANDARD=17 -DCMAKE_CXX_STANDARD_REQUIRED=ON -DCMAKE_CXX_FLAGS="-std=c++17" -DCMAKE_PREFIX_PATH=${{ env.SDL2_DIR }}
               cmake --build . --config Release --target main --target stream
             fi
           elif [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
