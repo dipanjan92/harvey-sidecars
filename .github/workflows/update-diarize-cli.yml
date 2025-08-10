@@ -173,14 +173,20 @@ jobs:
             --hidden-import=pyannote.audio.models \
             --hidden-import=pyannote.audio.models.segmentation \
             --hidden-import=pyannote.audio.models.embedding \
-            --exclude-module torch.cuda \
-            --exclude-module torch.backends.cudnn \
-            --exclude-binaries libcudart.so \
-            --exclude-binaries libcuda.so \
-            --exclude-binaries libnvrtc.so \
-            --exclude-binaries libcublas.so \
-            --exclude-binaries libcudnn.so \
-            --exclude-binaries libnvinfer.so \
+            --exclude-module nvidia.cuda_nvrtc \
+            --exclude-module nvidia.cuda_runtime \
+            --exclude-module nvidia.cuda_cupti \
+            --exclude-module nvidia.cudnn \
+            --exclude-module nvidia.cublas \
+            --exclude-module nvidia.cufft \
+            --exclude-module nvidia.curand \
+            --exclude-module nvidia.cusolver \
+            --exclude-module nvidia.cusparse \
+            --exclude-module nvidia.cusparselt \
+            --exclude-module nvidia.nccl \
+            --exclude-module nvidia.nvtx \
+            --exclude-module nvidia.nvjitlink \
+            --exclude-module nvidia.cufile \
             diarize-cli/diarize_cli.py
 
           echo "--- Size of dist directory (Linux only) ---"
