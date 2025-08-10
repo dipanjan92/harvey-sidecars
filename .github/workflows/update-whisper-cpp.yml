@@ -196,7 +196,7 @@ jobs:
           INSTALL_PREFIX="${{ github.workspace }}/whisper-cpp-install/${{ matrix.folder }}"
           mkdir -p "${INSTALL_PREFIX}"
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            CMAKE_COMMON_FLAGS="-DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON -DBUILD_EXAMPLES=OFF -DCMAKE_INSTALL_PREFIX=\"${INSTALL_PREFIX}\""
+            CMAKE_COMMON_FLAGS="-DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON -DBUILD_EXAMPLES=OFF -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX}"
             if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
               # Specific flags for Windows ARM64 (MinGW/Clang)
               cmake .. ${CMAKE_COMMON_FLAGS} -G "Unix Makefiles" -DCMAKE_CXX_STANDARD=17 -DCMAKE_CXX_STANDARD_REQUIRED=ON -DCMAKE_CXX_FLAGS="-std=c++17" -DCMAKE_PREFIX_PATH=${{ env.SDL2_DIR }}
