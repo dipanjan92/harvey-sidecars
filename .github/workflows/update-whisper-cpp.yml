@@ -77,7 +77,7 @@ jobs:
             cmake_opts: "-DCMAKE_OSX_ARCHITECTURES=arm64"
           - os: windows-latest
             folder: windows-x86_64
-            cmake_opts: ""
+            cmake_opts: "-G \"Unix Makefiles\""
           - os: windows-latest
             folder: windows-arm64
             cmake_opts: "-G \"Unix Makefiles\""
@@ -111,6 +111,20 @@ jobs:
             mingw-w64-clang-aarch64-pkg-config
             mingw-w64-clang-aarch64-zlib
             mingw-w64-clang-aarch64-libiconv
+
+      - name: Setup MSYS2 environment (Windows x86_64)
+        if: matrix.folder == 'windows-x86_64'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: CLANG64
+          update: true
+          install: >-
+            make
+            cmake
+            mingw-w64-clang-x86_64-toolchain
+            mingw-w64-clang-x86_64-pkg-config
+            mingw-w64-clang-x86_64-zlib
+            mingw-w64-clang-x86_64-libiconv
 
       - name: Install prerequisites (Linux)
         if: runner.os == 'Linux'
@@ -203,7 +217,7 @@ jobs:
               make -j$(nproc)
               make install
             else # For windows-x86_64 (MSVC)
-              cmake .. ${CMAKE_COMMON_FLAGS} -DCMAKE_CXX_STANDARD=17 -DCMAKE_CXX_STANDARD_REQUIRED=ON -DCMAKE_CXX_FLAGS="/std:c++17 /EHsc" -DCMAKE_PREFIX_PATH=${{ env.SDL2_DIR }}
+              cmake .. ${CMAKE_COMMON_FLAGS} -DCMAKE_CXX_STANDARD=17 -DCMAKE_CXX_STANDARD_REQUIRED=ON -DCMAKE_CXX_FLAGS="-std=c++17" -DCMAKE_PREFIX_PATH=${{ env.SDL2_DIR }}
               cmake --build . --config Release --target main --target stream
             fi
           elif [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
@@ -242,7 +256,7 @@ jobs:
           if [[ "${{ runner.os }}" == "Windows" ]]; then
             cp "whisper.cpp/build/bin/main.exe" release_assets/whisper-cli.exe
             cp "whisper.cpp/build/bin/stream.exe" release_assets/whisper-stream.exe
-            cp "${{ env.SDL2_DIR }}/bin/SDL2.dll" release_assets/SDL2.dll
+            cp "${{ env.SDL2_DIR }}/bin/SDL2.dll" release_assets/SDL2-${{ matrix.folder }}.dll
           else
             cp "whisper.cpp/build/bin/main" release_assets/whisper-cli
             cp "whisper.cpp/build/bin/stream" release_assets/whisper-stream
