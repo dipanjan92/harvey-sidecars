@@ -166,8 +166,8 @@ jobs:
           mkdir build && cd build
           cmake .. -DCMAKE_BUILD_TYPE=Release \
                    -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/SDL2-install" \
-                   -DSDL_STATIC=ON \
-                   -DSDL_SHARED=OFF \
+                   -DSDL_STATIC=OFF \
+                   -DSDL_SHARED=ON \
                    ${{ matrix.cmake_opts }}
           if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
             make -j$(nproc)
@@ -196,7 +196,7 @@ jobs:
           INSTALL_PREFIX="${{ github.workspace }}/whisper-cpp-install/${{ matrix.folder }}"
           mkdir -p "${INSTALL_PREFIX}"
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON -DBUILD_EXAMPLES=OFF -DCMAKE_CXX_STANDARD=17 -DCMAKE_CXX_STANDARD_REQUIRED=ON -DCMAKE_PREFIX_PATH=${{ env.SDL2_DIR }} -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" ${{ matrix.cmake_opts }}
+            cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON -DBUILD_EXAMPLES=OFF -DCMAKE_CXX_STANDARD=17 -DCMAKE_CXX_STANDARD_REQUIRED=ON -DCMAKE_CXX_FLAGS="/std:c++17 /EHsc" -DCMAKE_PREFIX_PATH=${{ env.SDL2_DIR }} -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" ${{ matrix.cmake_opts }}
             if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
               make -j$(nproc)
               make install
