@@ -190,7 +190,7 @@ jobs:
           INSTALL_PREFIX="${{ github.workspace }}/whisper-cpp-install/${{ matrix.folder }}"
           mkdir -p "${INSTALL_PREFIX}"
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON -DCMAKE_PREFIX_PATH=${{ env.SDL2_DIR }} -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" ${{ matrix.cmake_opts }}
+            cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON -DBUILD_EXAMPLES=OFF -DCMAKE_PREFIX_PATH=${{ env.SDL2_DIR }} -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" ${{ matrix.cmake_opts }}
             if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
               make -j$(nproc)
               make install
@@ -205,6 +205,7 @@ jobs:
               -DCMAKE_CXX_COMPILER="${{ env.TOOLCHAIN_DIR }}/bin/aarch64-none-linux-gnu-g++" \
               -DCMAKE_SYSTEM_NAME=Linux \
               -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
+              -DCMAKE_PREFIX_PATH="${{ env.TOOLCHAIN_DIR }}/aarch64-none-linux-gnu" \
               -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" ${{ matrix.cmake_opts }}
             make -j$(nproc)
             make install
@@ -230,12 +231,12 @@ jobs:
           mkdir -p release_assets
           INSTALL_PREFIX="${{ github.workspace }}/whisper-cpp-install/${{ matrix.folder }}"
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            cp "whisper.cpp/build/bin/Release/main.exe" release_assets/whisper-cli.exe
-            cp "whisper.cpp/build/bin/Release/stream.exe" release_assets/whisper-stream.exe
+            cp "whisper.cpp/build/Release/main.exe" release_assets/whisper-cli.exe
+            cp "whisper.cpp/build/Release/stream.exe" release_assets/whisper-stream.exe
             cp ${{ env.SDL2_DIR }}/bin/SDL2.dll release_assets/SDL2.dll
           else
-            cp "${INSTALL_PREFIX}/bin/main" release_assets/whisper-cli
-            cp "${INSTALL_PREFIX}/bin/stream" release_assets/whisper-stream
+            cp "whisper.cpp/build/bin/main" release_assets/whisper-cli
+            cp "whisper.cpp/build/bin/stream" release_assets/whisper-stream
           fi
           echo "--- Prepared assets ---"
           ls -lh release_assets
