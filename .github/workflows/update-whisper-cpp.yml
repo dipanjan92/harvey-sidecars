@@ -62,7 +62,7 @@ jobs:
     name: Build & Upload Binaries
     needs: create-release
     runs-on: ${{ matrix.os }}
-    env: 
+    env:
       SDL2_DIR: "" # Initialize SDL2_DIR to avoid static analysis warnings
       TOOLCHAIN_DIR: "" # Initialize TOOLCHAIN_DIR to avoid static analysis warnings
     strategy:
@@ -179,10 +179,10 @@ jobs:
           rm -rf build
           mkdir build && cd build
           cmake .. -DCMAKE_BUILD_TYPE=Release \
-                   -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/SDL2-install" \
-                   -DSDL_STATIC=OFF \
-                   -DSDL_SHARED=ON \
-                   ${{ matrix.cmake_opts }}
+                    -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/SDL2-install" \
+                    -DSDL_STATIC=ON \
+                    -DSDL_SHARED=OFF \
+                    ${{ matrix.cmake_opts }}
           if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
             make -j$(nproc)
             make install
@@ -212,12 +212,12 @@ jobs:
           if [[ "${{ runner.os }}" == "Windows" ]]; then
             CMAKE_COMMON_FLAGS="-DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON -DBUILD_EXAMPLES=OFF -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX}"
             if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
-              # Specific flags for Windows ARM64 (MinGW/Clang)
-              cmake .. ${CMAKE_COMMON_FLAGS} -G "Unix Makefiles" -DCMAKE_CXX_STANDARD=17 -DCMAKE_CXX_STANDARD_REQUIRED=ON -DCMAKE_CXX_FLAGS="-std=c++17" -DCMAKE_PREFIX_PATH=${{ env.SDL2_DIR }}
+              # Specific flags for Windows ARM64 (MinGW/Clang) - Static Linking
+              cmake .. ${CMAKE_COMMON_FLAGS} -G "Unix Makefiles" -DCMAKE_CXX_STANDARD=17 -DCMAKE_CXX_STANDARD_REQUIRED=ON -DCMAKE_CXX_FLAGS="-std=c++17" -DCMAKE_PREFIX_PATH=${{ env.SDL2_DIR }} -DCMAKE_EXE_LINKER_FLAGS="-static -static-libgcc -static-libstdc++"
               make -j$(nproc)
               make install
-            else # For windows-x86_64 (MinGW/Clang)
-              cmake .. ${CMAKE_COMMON_FLAGS} -G "Unix Makefiles" -DCMAKE_CXX_STANDARD=17 -DCMAKE_CXX_STANDARD_REQUIRED=ON -DCMAKE_CXX_FLAGS="-std=c++17" -DCMAKE_PREFIX_PATH=${{ env.SDL2_DIR }}
+            else # For windows-x86_64 (MinGW/Clang) - Static Linking
+              cmake .. ${CMAKE_COMMON_FLAGS} -G "Unix Makefiles" -DCMAKE_CXX_STANDARD=17 -DCMAKE_CXX_STANDARD_REQUIRED=ON -DCMAKE_CXX_FLAGS="-std=c++17" -DCMAKE_PREFIX_PATH=${{ env.SDL2_DIR }} -DCMAKE_EXE_LINKER_FLAGS="-static -static-libgcc -static-libstdc++"
               cmake --build . --config Release --target main --target stream
             fi
           elif [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
@@ -256,7 +256,6 @@ jobs:
           if [[ "${{ runner.os }}" == "Windows" ]]; then
             cp "whisper.cpp/build/bin/main.exe" release_assets/whisper-cli.exe
             cp "whisper.cpp/build/bin/stream.exe" release_assets/whisper-stream.exe
-            cp "${{ env.SDL2_DIR }}/bin/SDL2.dll" release_assets/SDL2-${{ matrix.folder }}.dll
           else
             cp "whisper.cpp/build/bin/main" release_assets/whisper-cli
             cp "whisper.cpp/build/bin/stream" release_assets/whisper-stream
@@ -280,7 +279,7 @@ jobs:
             sha256sum "${CLI_ASSET}" > "${CLI_ASSET}.sha256"
             sha256sum "${STREAM_ASSET}" > "${STREAM_ASSET}.sha256"
             
-            gh release upload ${{ needs.create-release.outputs.release_tag }} "${CLI_ASSET}" "${CLI_ASSET}.sha256" "${STREAM_ASSET}" "${STREAM_ASSET}.sha256" "SDL2-${{ matrix.folder }}.dll" --clobber
+            gh release upload ${{ needs.create-release.outputs.release_tag }} "${CLI_ASSET}" "${CLI_ASSET}.sha256" "${STREAM_ASSET}" "${STREAM_ASSET}.sha256" --clobber
           else
             CLI_ASSET="whisper-cli-${{ matrix.folder }}"
             STREAM_ASSET="whisper-stream-${{ matrix.folder }}"
