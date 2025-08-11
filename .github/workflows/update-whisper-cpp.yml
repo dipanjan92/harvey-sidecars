@@ -86,13 +86,17 @@ jobs:
             cmake_opts: ""
           - os: ubuntu-latest
             folder: linux-arm64
-            cmake_opts: ""
+            cmake_opts: "-DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/aarch64-linux-gnu.toolchain.cmake -DCMAKE_EXE_LINKER_FLAGS=-static"
     defaults:
       run:
         shell: bash
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Set up QEMU for cross-compilation
+        if: matrix.folder == 'linux-arm64'
+        uses: docker/setup-qemu-action@v3
 
       - name: Install prerequisites (macOS)
         if: runner.os == 'macOS'
@@ -128,43 +132,37 @@ jobs:
 
       - name: Install prerequisites (Linux)
         if: runner.os == 'Linux'
-        env:
-          TOOLCHAIN_DIR: ${{ github.workspace }}/arm-gnu-toolchain-13.2.rel1-x86_64-aarch64-none-linux-gnu
         run: |
           if [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
             set -e
-            # Download and set up a self-contained aarch64 toolchain instead of using apt
-            TOOLCHAIN_URL="https://developer.arm.com/-/media/Files/downloads/gnu/13.2.rel1/binrel/arm-gnu-toolchain-13.2.rel1-x86_64-aarch64-none-linux-gnu.tar.xz"
-            echo "Downloading toolchain from ${TOOLCHAIN_URL}"
-            curl -L -o toolchain.tar.xz ${TOOLCHAIN_URL} || { echo "Failed to download toolchain"; exit 1; }
-            echo "Extracting toolchain..."
-            mkdir -p ${TOOLCHAIN_DIR} || { echo "Failed to create TOOLCHAIN_DIR"; exit 1; }
-            tar -xJf toolchain.tar.xz -C ${TOOLCHAIN_DIR} --strip-components=1 || { echo "Failed to extract toolchain"; exit 1; }
-            rm toolchain.tar.xz
-            echo "Toolchain extracted to: $(ls -d ${TOOLCHAIN_DIR})"
-            ls -l ${TOOLCHAIN_DIR}/bin/aarch64-none-linux-gnu-gcc
-            echo "Contents of toolchain bin directory:"
-            ls -l ${TOOLCHAIN_DIR}/bin
-            echo "File type of aarch64-none-linux-gnu-gcc:"
-            file ${TOOLCHAIN_DIR}/bin/aarch64-none-linux-gnu-gcc
-            echo "TOOLCHAIN_DIR=${TOOLCHAIN_DIR}" >> $GITHUB_ENV # Export TOOLCHAIN_DIR to GITHUB_ENV
-            # Build SDL2 from source for arm64, installing it into our toolchain directory
-            SDL2_VERSION="2.30.5"
-            curl -sL "https://github.com/libsdl-org/SDL/releases/download/release-${SDL2_VERSION}/SDL2-${SDL2_VERSION}.tar.gz" | tar xz
-            cd SDL2-${SDL2_VERSION}
-            rm -rf build
-            mkdir build && cd build
-            cmake .. -DCMAKE_C_COMPILER="${{ env.TOOLCHAIN_DIR }}/bin/aarch64-none-linux-gnu-gcc" \
-                      -DCMAKE_CXX_COMPILER="${{ env.TOOLCHAIN_DIR }}/bin/aarch64-none-linux-gnu-g++" \
-                      -DCMAKE_INSTALL_PREFIX="${{ env.TOOLCHAIN_DIR }}/aarch64-none-linux-gnu" \
-                      -DSDL_STATIC=ON \
-                      -DSDL_SHARED=OFF
-            make -j$(nproc)
-            make install
-            cd ../..
+            # Set up multi-arch environment and install arm64 dependencies
+            sudo dpkg --add-architecture arm64
+            sudo rm -f /etc/apt/sources.list.d/ubuntu.sources
+            RELEASE_NAME=$(lsb_release -cs)
+            cat <<EOF | sudo tee /etc/apt/sources.list
+            deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ ${RELEASE_NAME} main restricted universe multiverse
+            deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ ${RELEASE_NAME}-updates main restricted universe multiverse
+            deb [arch=amd64] http://security.ubuntu.com/ubuntu/ ${RELEASE_NAME}-security main restricted universe multiverse
+            deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports ${RELEASE_NAME} main restricted universe multiverse
+            deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports ${RELEASE_NAME}-updates main restricted universe multiverse
+            deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports ${RELEASE_NAME}-security main restricted universe multiverse
+            EOF
+            sudo apt-get update
+            sudo apt-get install -y \
+              cmake \
+              gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu \
+              libsdl2-dev:arm64
+            
+            # Create a CMake toolchain file for cross-compilation
+            cat <<EOF > ${{ github.workspace }}/aarch64-linux-gnu.toolchain.cmake
+            set(CMAKE_SYSTEM_NAME Linux)
+            set(CMAKE_SYSTEM_PROCESSOR aarch64)
+            set(CMAKE_C_COMPILER aarch64-linux-gnu-gcc)
+            set(CMAKE_CXX_COMPILER aarch64-linux-gnu-g++)
+            EOF
           else
             sudo apt-get update -y
-            sudo apt-get install -y libsdl2-dev
+            sudo apt-get install -y libsdl2-dev cmake
           fi
 
       - name: Install prerequisites (Windows)
@@ -179,10 +177,10 @@ jobs:
           rm -rf build
           mkdir build && cd build
           cmake .. -DCMAKE_BUILD_TYPE=Release \
-                    -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/SDL2-install" \
-                    -DSDL_STATIC=ON \
-                    -DSDL_SHARED=OFF \
-                    ${{ matrix.cmake_opts }}
+                   -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/SDL2-install" \
+                   -DSDL_STATIC=ON \
+                   -DSDL_SHARED=OFF \
+                   ${{ matrix.cmake_opts }}
           if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
             make -j$(nproc)
             make install
@@ -220,24 +218,14 @@ jobs:
               cmake .. ${CMAKE_COMMON_FLAGS} -G "Unix Makefiles" -DCMAKE_CXX_STANDARD=17 -DCMAKE_CXX_STANDARD_REQUIRED=ON -DCMAKE_CXX_FLAGS="-std=c++17" -DCMAKE_PREFIX_PATH=${{ env.SDL2_DIR }} -DCMAKE_EXE_LINKER_FLAGS="-static -static-libgcc -static-libstdc++"
               cmake --build . --config Release --target main --target stream
             fi
-          elif [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
-            export PATH="${{ env.TOOLCHAIN_DIR }}/bin:$PATH" # Add toolchain bin to PATH
-            export PKG_CONFIG_PATH="${{ env.TOOLCHAIN_DIR }}/aarch64-none-linux-gnu/lib/pkgconfig"
-            cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON \
-              -DCMAKE_C_COMPILER="${{ env.TOOLCHAIN_DIR }}/bin/aarch64-none-linux-gnu-gcc" \
-              -DCMAKE_CXX_COMPILER="${{ env.TOOLCHAIN_DIR }}/bin/aarch64-none-linux-gnu-g++" \
-              -DCMAKE_SYSTEM_NAME=Linux \
-              -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
-              -DCMAKE_PREFIX_PATH="${{ env.TOOLCHAIN_DIR }}/aarch64-none-linux-gnu" \
-              -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
-              -DCMAKE_EXE_LINKER_FLAGS="-static" ${{ matrix.cmake_opts }}
-            make -j$(nproc)
-            make install
-          else # For macOS and linux-x86_64
+          else # For macOS and all Linux variants
+            if [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
+              export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig
+            fi
             cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" ${{ matrix.cmake_opts }}
             if [[ "${{ runner.os }}" == "macOS" ]]; then
               cmake --build . --config Release --target install
-            else # For linux-x86_64
+            else # For all Linux variants
               make -j$(nproc)
               make install
             fi
