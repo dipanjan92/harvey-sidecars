@@ -172,7 +172,7 @@ jobs:
               --enable-iconv
               --disable-libmp3lame
               --pkg-config-flags="--static"
-
+              --extra-ldflags="-static"
 
     defaults:
       run:
