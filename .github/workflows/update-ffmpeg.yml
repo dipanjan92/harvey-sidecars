@@ -145,11 +145,18 @@ jobs:
             folder: linux-arm64
             type: build
             install_deps: |
+              set -e
               sudo dpkg --add-architecture arm64
-              cat <<EOF | sudo tee /etc/apt/sources.list.d/arm64.list
-              deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports $(lsb_release -cs) main restricted universe multiverse
-              deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports $(lsb_release -cs)-updates main restricted universe multiverse
-              deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports $(lsb_release -cs)-security main restricted universe multiverse
+              # Remove default source file and replace with one that explicitly separates archs
+              sudo rm /etc/apt/sources.list.d/ubuntu.sources
+              RELEASE_NAME=$(lsb_release -cs)
+              cat <<EOF | sudo tee /etc/apt/sources.list
+              deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ ${RELEASE_NAME} main restricted universe multiverse
+              deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ ${RELEASE_NAME}-updates main restricted universe multiverse
+              deb [arch=amd64] http://security.ubuntu.com/ubuntu/ ${RELEASE_NAME}-security main restricted universe multiverse
+              deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports ${RELEASE_NAME} main restricted universe multiverse
+              deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports ${RELEASE_NAME}-updates main restricted universe multiverse
+              deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports ${RELEASE_NAME}-security main restricted universe multiverse
               EOF
               sudo apt-get update
               sudo apt-get install -y \
