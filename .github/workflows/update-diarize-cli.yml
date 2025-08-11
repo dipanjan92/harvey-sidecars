@@ -44,7 +44,7 @@ jobs:
             folder: windows-arm64
           - os: ubuntu-latest
             folder: linux-x86_64
-          - os: ubuntu-latest
+          - os: ubuntu-latest-arm64
             folder: linux-arm64
             
     defaults:
