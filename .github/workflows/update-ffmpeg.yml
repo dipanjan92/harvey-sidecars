@@ -140,6 +140,7 @@ jobs:
               --enable-iconv
               --disable-libmp3lame
               --pkg-config-flags="--static"
+              --extra-ldflags="-static"
 
           - os: ubuntu-latest
             folder: linux-arm64
@@ -150,7 +151,7 @@ jobs:
               # Remove default source file and replace with one that explicitly separates archs
               sudo rm /etc/apt/sources.list.d/ubuntu.sources
               RELEASE_NAME=$(lsb_release -cs)
-              cat <<EOF | sudo tee /etc/apt/sources.list
+              cat <<-EOF | sudo tee /etc/apt/sources.list
               deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ ${RELEASE_NAME} main restricted universe multiverse
               deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ ${RELEASE_NAME}-updates main restricted universe multiverse
               deb [arch=amd64] http://security.ubuntu.com/ubuntu/ ${RELEASE_NAME}-security main restricted universe multiverse
