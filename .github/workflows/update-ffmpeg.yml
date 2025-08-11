@@ -145,9 +145,17 @@ jobs:
             folder: linux-arm64
             type: build
             install_deps: |
-              sudo apt-get update -y && sudo apt-get install -y \
-                yasm nasm pkg-config zlib1g-dev \
-                gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
+              sudo dpkg --add-architecture arm64
+              cat <<EOF | sudo tee /etc/apt/sources.list.d/arm64.list
+              deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports $(lsb_release -cs) main restricted universe multiverse
+              deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports $(lsb_release -cs)-updates main restricted universe multiverse
+              deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports $(lsb_release -cs)-security main restricted universe multiverse
+              EOF
+              sudo apt-get update
+              sudo apt-get install -y \
+                yasm nasm pkg-config \
+                gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu \
+                zlib1g-dev:arm64
             configure_opts: >-
               --arch=aarch64
               --cross-prefix=aarch64-linux-gnu-
@@ -239,6 +247,9 @@ jobs:
         if: matrix.type == 'build' && runner.os == 'Linux'
         run: |
           echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
+          if [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
+            export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig
+          fi
           CPU_COUNT=$(nproc)
           echo "Using $CPU_COUNT cores for make"
           
