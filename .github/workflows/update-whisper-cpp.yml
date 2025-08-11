@@ -131,11 +131,11 @@ jobs:
         run: |
           set -e
           if [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
-            # 1. Install host build tools
+            # 1. Install host build tools for ARM64 cross-compilation
             sudo apt-get update -y
             sudo apt-get install -y build-essential cmake curl
 
-            # 2. Create a self-contained cross-compilation environment
+            # 2. Create a self-contained cross-compilation environment for ARM64
             TOOLCHAIN_DIR_PATH="${{ github.workspace }}/arm-gnu-toolchain"
             SDL2_INSTALL_PATH="${{ github.workspace }}/SDL2-install-arm64"
             echo "TOOLCHAIN_DIR=${TOOLCHAIN_DIR_PATH}" >> $GITHUB_ENV
@@ -164,17 +164,33 @@ jobs:
             make -j$(nproc)
             make install
           else
-            # Standard setup for x86_64
+            # 1. Install host build tools for x86_64 static compilation
             sudo apt-get update -y
-            sudo apt-get install -y libsdl2-dev cmake
+            sudo apt-get install -y build-essential cmake curl
+
+            # 2. Set up environment for self-contained x86_64 build
+            SDL2_INSTALL_PATH="${{ github.workspace }}/SDL2-install-x86_64"
+            echo "SDL2_DIR=${SDL2_INSTALL_PATH}" >> $GITHUB_ENV
+
+            # 3. Download and build SDL2 from source using native compilers
+            SDL2_VERSION="2.30.5"
+            echo "Downloading SDL2 source..."
+            curl -sL "https://github.com/libsdl-org/SDL/releases/download/release-${SDL2_VERSION}/SDL2-${SDL2_VERSION}.tar.gz" | tar xz
+            cd SDL2-${SDL2_VERSION}
+            mkdir build && cd build
+            echo "Configuring and building SDL2 for x86_64..."
+            cmake .. -DCMAKE_INSTALL_PREFIX="${SDL2_INSTALL_PATH}" \
+                     -DSDL_STATIC=ON \
+                     -DSDL_SHARED=OFF
+            make -j$(nproc)
+            make install
           fi
 
       - name: Install prerequisites (Windows)
         if: runner.os == 'Windows'
-        shell: bash # Revert shell to bash
+        shell: bash
         run: |
           SDL2_VERSION="2.30.5"
-          # Build SDL2 from source for both windows-arm64 and windows-x86_64
           echo "Building SDL2 from source for ${{ matrix.folder }}"...
           curl -sL "https://github.com/libsdl-org/SDL/releases/download/release-${SDL2_VERSION}/SDL2-${SDL2_VERSION}.tar.gz" | tar xz
           cd SDL2-${SDL2_VERSION}
@@ -235,14 +251,18 @@ jobs:
                      -DCMAKE_EXE_LINKER_FLAGS="-static"
             make -j$(nproc)
             make install
-          else # For macOS and linux-x86_64
+          elif [[ "${{ matrix.folder }}" == "linux-x86_64" ]]; then
+            cmake .. -DCMAKE_BUILD_TYPE=Release \
+                     -DBUILD_SHARED_LIBS=OFF \
+                     -DWHISPER_SDL2=ON \
+                     -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
+                     -DCMAKE_PREFIX_PATH="${{ env.SDL2_DIR }}" \
+                     -DCMAKE_EXE_LINKER_FLAGS="-static"
+            make -j$(nproc)
+            make install
+          else # For macOS
             cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" ${{ matrix.cmake_opts }}
-            if [[ "${{ runner.os }}" == "macOS" ]]; then
-              cmake --build . --config Release --target install
-            else # For linux-x86_64
-              make -j$(nproc)
-              make install
-            fi
+            cmake --build . --config Release --target install
           fi
 
       - name: List installed whisper-cpp files (Debug)
