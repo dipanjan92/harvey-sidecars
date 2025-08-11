@@ -41,6 +41,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # ADD THIS STEP TO ENABLE ARM64 EMULATION ON X86 RUNNERS
+      - name: Set up QEMU for ARM emulation
+        if: matrix.arch == 'linux-arm64'
+        uses: docker/setup-qemu-action@v3
+
       - name: Download and Prepare Binaries
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
