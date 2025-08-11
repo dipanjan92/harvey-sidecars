@@ -199,7 +199,7 @@ jobs:
             -e HUGGINGFACE_TOKEN \
             arm64v8/python:3.11 \
             sh -c ' \
-            # Step: Install system dependencies like rsync
+            # Step: Install system dependencies
             apt-get update && apt-get install -y rsync && \
             \
             # Step: Install Python dependencies
@@ -242,7 +242,10 @@ jobs:
             \
             # Step: Log final size
             du -sh dist && \
-            ls -lh dist \
+            ls -lh dist && \
+            \
+            # Step: Fix permissions for files created by root in container
+            chown -R $(stat -c %u:%g .) dist build \
             '
 
       # Step 10: Prepare assets for upload by renaming the binary
