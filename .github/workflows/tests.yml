@@ -26,6 +26,12 @@ jobs:
             arch: macos-arm64
           - os: windows-latest
             arch: windows-x86_64
+          - os: windows-latest
+            arch: windows-arm64
+          - os: ubuntu-latest
+            arch: linux-x86_64
+          - os: ubuntu-latest
+            arch: linux-arm64
 
     defaults:
       run:
@@ -58,7 +64,7 @@ jobs:
           
           # Download SDL2.dll for Windows
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            gh release download "${{ env.RELEASE_TAG }}" --pattern "SDL2.dll" --clobber
+            gh release download "${{ env.RELEASE_TAG }}" --pattern "SDL2-${{ matrix.arch }}.dll" --clobber
           fi
           
           # Make the binaries executable on non-Windows runners
