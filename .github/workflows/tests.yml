@@ -62,11 +62,6 @@ jobs:
           # Download the main binaries from the release
           gh release download "${{ env.RELEASE_TAG }}" --pattern "${FFMPEG_ASSET}" --pattern "${WHISPER_ASSET}" --clobber
           
-          # Download SDL2.dll for Windows
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
-            gh release download "${{ env.RELEASE_TAG }}" --pattern "SDL2-${{ matrix.arch }}.dll" --clobber
-          fi
-          
           # Make the binaries executable on non-Windows runners
           if [[ "${{ runner.os }}" != "Windows" ]]; then
             chmod +x "${FFMPEG_ASSET}"
