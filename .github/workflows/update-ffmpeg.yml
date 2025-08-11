@@ -140,28 +140,15 @@ jobs:
               --enable-iconv
               --disable-libmp3lame
               --pkg-config-flags="--static"
-
-          - os: ubuntu-latest
+          
+          # ---- START OF CHANGES ----
+          - os: ubuntu-latest-arm64 # <-- 1. USE NATIVE ARM RUNNER (LATEST)
             folder: linux-arm64
             type: build
-            install_deps: |
-              set -e
-              sudo dpkg --add-architecture arm64
-              # Remove the default deb822 source file which is hard to parse and modify.
-              sudo rm -f /etc/apt/sources.list.d/ubuntu.sources
-              # Create a new classic sources.list with explicit architectures
-              echo "deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ noble main restricted universe multiverse" | sudo tee /etc/apt/sources.list
-              echo "deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ noble-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
-              echo "deb [arch=amd64] http://security.ubuntu.com/ubuntu/ noble-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
-              echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ noble main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
-              echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ noble-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
-              echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ noble-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
-              sudo apt-get update
-              sudo apt-get install -y yasm nasm pkg-config gcc-aarch64-linux-gnu zlib1g-dev:arm64
-            configure_opts: >-
+            install_deps: | # <-- 2. SIMPLIFY DEPENDENCIES
+              sudo apt-get update -y && sudo apt-get install -y yasm nasm pkg-config zlib1g-dev
+            configure_opts: >- # <-- 3. REMOVE CROSS-COMPILATION FLAGS
               --arch=aarch64
-              --cross-prefix=aarch64-linux-gnu-
-              --target-os=linux
               --disable-gpl
               --disable-nonfree
               --disable-ffplay
@@ -173,6 +160,7 @@ jobs:
               --disable-libmp3lame
               --pkg-config-flags="--static"
               --extra-ldflags="-static"
+          # ---- END OF CHANGES ----
 
     defaults:
       run:
@@ -245,9 +233,6 @@ jobs:
         if: matrix.type == 'build' && runner.os == 'Linux'
         run: |
           echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
-          if [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
-            export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig
-          fi
           CPU_COUNT=$(nproc)
           echo "Using $CPU_COUNT cores for make"
           
@@ -317,11 +302,10 @@ jobs:
           ls -l "${INSTALL_DIR}/bin/"
 
           if [[ -f "${INSTALL_DIR}/bin/${SRC_EXE_NAME}" ]]; then
-            if [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
-              aarch64-linux-gnu-strip "${INSTALL_DIR}/bin/${SRC_EXE_NAME}"
-            else
-              strip "${INSTALL_DIR}/bin/${SRC_EXE_NAME}"
-            fi
+            # ---- START OF CHANGE ----
+            # 4. USE STANDARD STRIP (no cross-compile version needed)
+            strip "${INSTALL_DIR}/bin/${SRC_EXE_NAME}"
+            # ---- END OF CHANGE ----
             mv "${INSTALL_DIR}/bin/${SRC_EXE_NAME}" "${INSTALL_DIR}/${FINAL_EXE_NAME}"
             if [[ "${{ runner.os }}" != "Windows" ]]; then
               chmod +x "${INSTALL_DIR}/${FINAL_EXE_NAME}"
