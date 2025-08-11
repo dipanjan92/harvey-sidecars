@@ -44,7 +44,7 @@ jobs:
             folder: windows-arm64
           - os: ubuntu-latest
             folder: linux-x86_64
-          - os: ubuntu-latest-arm64
+          - os: ubuntu-latest # MODIFIED: Run on a standard x86 runner for emulation
             folder: linux-arm64
             
     defaults:
@@ -59,14 +59,25 @@ jobs:
           persist-credentials: true # Persist credentials for git push
           fetch-depth: 0          # Fetch all history for all branches and tags
 
-      # Step 2: Set up Python 3.11
+      # Step 2 [QEMU]: Set up QEMU for ARM64 emulation on x86 runner
+      - name: Set up QEMU
+        if: matrix.folder == 'linux-arm64'
+        uses: docker/setup-qemu-action@v3
+
+      # Step 2 [NATIVE]: Set up Python 3.11
       - name: Set up Python 3.11
+        if: matrix.folder != 'linux-arm64'
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
 
-      # Step 3: Install Python dependencies
+      # Step 3-9 [NATIVE]: The entire native build process
+      - name: Native Build Steps (non-ARM)
+        if: matrix.folder != 'linux-arm64'
+        run: echo "Skipping native build steps for ARM64 emulation."
+
       - name: Install dependencies
+        if: matrix.folder != 'linux-arm64'
         run: |
           python -m pip install --upgrade pip
           pip install "numpy<2.0"
@@ -78,19 +89,19 @@ jobs:
           pip install pyannote.audio huggingface_hub pyinstaller matplotlib lightning_fabric speechbrain
 
       - name: Log PyTorch/Torchaudio installation sizes (Linux only)
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && matrix.folder != 'linux-arm64'
         run: |
           echo "--- Size of site-packages/torch ---"
           du -sh $(python3 -c "import torch, os; print(os.path.dirname(torch.__file__))")
           echo "--- Size of site-packages/torchaudio ---"
           du -sh $(python3 -c "import torchaudio, os; print(os.path.dirname(torchaudio.__file__))")
 
-      # Step 4: Log in to Hugging Face CLI
       - name: Log in to Hugging Face
+        if: matrix.folder != 'linux-arm64'
         run: hf auth login --token "$HUGGINGFACE_TOKEN"
 
-      # Step 5: Preload Pyannote pipeline and copy models
       - name: Preload Pyannote pipeline and copy models
+        if: matrix.folder != 'linux-arm64'
         run: |
           # Preload speaker diarization pipeline into cache
           python3 - << 'EOF'
@@ -122,8 +133,8 @@ jobs:
             du -sh diarize-cli/models
           fi
 
-      # Step 6: Generate Matplotlib font cache
       - name: Generate Matplotlib font cache
+        if: matrix.folder != 'linux-arm64'
         run: |
           python3 - << 'EOF'
           import os, matplotlib as mpl
@@ -137,8 +148,8 @@ jobs:
           _ = fm.fontManager
           EOF
 
-      # Step 7: Copy Matplotlib cache to resources
       - name: Copy Matplotlib cache to resources
+        if: matrix.folder != 'linux-arm64'
         run: |
           mkdir -p diarize-cli/resources/.matplotlib
           MATPLOTLIB_CACHE_DIR=$(python3 -c 'import matplotlib as mpl; print(mpl.get_cachedir())')
@@ -157,16 +168,16 @@ jobs:
             du -sh diarize-cli/resources/.matplotlib
           fi
 
-      # Step 8: Locate Lightning-Fabric and SpeechBrain paths
       - name: Locate Lightning-Fabric and SpeechBrain paths
+        if: matrix.folder != 'linux-arm64'
         run: |
           LIGHT_INFO=$(python3 -c "import lightning_fabric, os; print(os.path.dirname(lightning_fabric.__file__))")
           SPEECH_DIR=$(python3 -c "import speechbrain, os; print(os.path.dirname(speechbrain.__file__))")
           echo "LIGHT_INFO=$LIGHT_INFO" >> $GITHUB_ENV
           echo "SPEECH_DIR=$SPEECH_DIR" >> $GITHUB_ENV
 
-      # Step 9: Build the executable with PyInstaller
       - name: Build with PyInstaller
+        if: matrix.folder != 'linux-arm64'
         run: |
           pyinstaller --clean --onefile \
             --name diarize-cli \
@@ -185,6 +196,57 @@ jobs:
             du -sh dist
             ls -lh dist
           fi
+
+      # Step 3-9 [QEMU]: The entire build process inside an ARM64 container
+      - name: Build for linux-arm64 using QEMU
+        if: matrix.folder == 'linux-arm64'
+        run: |
+          docker run --rm -v "${{ github.workspace }}:/app" -w /app \
+            -e HUGGINGFACE_TOKEN \
+            arm64v8/python:3.11 \
+            sh -c ' \
+            # Step: Install dependencies
+            pip install --upgrade pip && \
+            pip install "numpy<2.0" && \
+            pip install torch==2.3.0+cpu torchvision==0.18.0+cpu torchaudio==2.3.0+cpu --index-url https://download.pytorch.org/whl/cpu && \
+            pip install pyannote.audio huggingface_hub pyinstaller matplotlib lightning_fabric speechbrain && \
+            \
+            # Step: Log in
+            hf auth login --token "$HUGGINGFACE_TOKEN" && \
+            \
+            # Step: Preload and copy models
+            python3 -c "from pyannote.audio import Pipeline; Pipeline.from_pretrained('\''pyannote/speaker-diarization-3.1'\'', use_auth_token='\''$HUGGINGFACE_TOKEN'\'')" && \
+            HF_CACHE_DIR="/root/.cache/torch/pyannote" && \
+            mkdir -p diarize-cli/models && \
+            for d in "$HF_CACHE_DIR"/models--pyannote--*; do [ -d "$d" ] && rsync -aL "$d" diarize-cli/models/; done && \
+            du -sh diarize-cli/models && \
+            \
+            # Step: Generate and copy matplotlib cache
+            python3 -c "import os, matplotlib as mpl; from matplotlib import font_manager as fm; fm.findSystemFonts()" && \
+            mkdir -p diarize-cli/resources/.matplotlib && \
+            MATPLOTLIB_CACHE_DIR=$(python3 -c "import matplotlib as mpl; print(mpl.get_cachedir())") && \
+            rsync -av --exclude='\''*.lock'\'' "$MATPLOTLIB_CACHE_DIR/" diarize-cli/resources/.matplotlib/ && \
+            du -sh diarize-cli/resources/.matplotlib && \
+            \
+            # Step: Locate paths and build
+            LIGHT_INFO=$(python3 -c "import lightning_fabric, os; print(os.path.dirname(lightning_fabric.__file__))") && \
+            SPEECH_DIR=$(python3 -c "import speechbrain, os; print(os.path.dirname(speechbrain.__file__))") && \
+            pyinstaller --clean --onefile \
+              --name diarize-cli \
+              --add-data "diarize-cli/models:models" \
+              --add-data "diarize-cli/resources/.matplotlib:resources/.matplotlib" \
+              --add-data "${LIGHT_INFO}:lightning_fabric" \
+              --add-data "${SPEECH_DIR}:speechbrain" \
+              --hidden-import=pyannote.audio.pipelines \
+              --hidden-import=pyannote.audio.models \
+              --hidden-import=pyannote.audio.models.segmentation \
+              --hidden-import=pyannote.audio.models.embedding \
+              diarize-cli/diarize_cli.py && \
+            \
+            # Step: Log final size
+            du -sh dist && \
+            ls -lh dist \
+            '
 
       # Step 10: Prepare assets for upload by renaming the binary
       - name: Prepare assets for upload
