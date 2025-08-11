@@ -134,7 +134,7 @@ jobs:
             # 1. Install host build tools
             sudo apt-get update -y
             sudo apt-get install -y build-essential cmake curl
-            
+
             # 2. Create a self-contained cross-compilation environment
             TOOLCHAIN_DIR_PATH="${{ github.workspace }}/arm-gnu-toolchain"
             SDL2_INSTALL_PATH="${{ github.workspace }}/SDL2-install-arm64"
@@ -148,7 +148,7 @@ jobs:
             echo "Extracting toolchain..."
             mkdir -p "${TOOLCHAIN_DIR_PATH}"
             tar -xJf toolchain.tar.xz -C "${TOOLCHAIN_DIR_PATH}" --strip-components=1
-            
+
             # 4. Download and build SDL2 from source using the cross-compiler
             SDL2_VERSION="2.30.5"
             echo "Downloading SDL2 source..."
@@ -211,7 +211,7 @@ jobs:
           cd whisper.cpp/build
           INSTALL_PREFIX="${{ github.workspace }}/whisper-cpp-install/${{ matrix.folder }}"
           mkdir -p "${INSTALL_PREFIX}"
-          
+
           if [[ "${{ runner.os }}" == "Windows" ]]; then
             CMAKE_COMMON_FLAGS="-DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON -DBUILD_EXAMPLES=OFF -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX}"
             if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
@@ -227,6 +227,8 @@ jobs:
                      -DBUILD_SHARED_LIBS=OFF \
                      -DWHISPER_SDL2=ON \
                      -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
+                     -DCMAKE_SYSTEM_NAME=Linux \
+                     -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
                      -DCMAKE_C_COMPILER="${{ env.TOOLCHAIN_DIR }}/bin/aarch64-none-linux-gnu-gcc" \
                      -DCMAKE_CXX_COMPILER="${{ env.TOOLCHAIN_DIR }}/bin/aarch64-none-linux-gnu-g++" \
                      -DCMAKE_PREFIX_PATH="${{ env.SDL2_DIR }}" \
