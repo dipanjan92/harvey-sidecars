@@ -199,7 +199,10 @@ jobs:
             -e HUGGINGFACE_TOKEN \
             arm64v8/python:3.11 \
             sh -c ' \
-            # Step: Install dependencies
+            # Step: Install system dependencies like rsync
+            apt-get update && apt-get install -y rsync && \
+            \
+            # Step: Install Python dependencies
             pip install --upgrade pip && \
             pip install "numpy<2.0" && \
             pip install torch==2.3.0 torchvision==0.18.0 torchaudio==2.3.0 --index-url https://download.pytorch.org/whl/cpu && \
