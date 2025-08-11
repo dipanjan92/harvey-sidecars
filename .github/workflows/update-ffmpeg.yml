@@ -140,15 +140,18 @@ jobs:
               --enable-iconv
               --disable-libmp3lame
               --pkg-config-flags="--static"
-          
-          # ---- START OF CHANGES ----
-          - os: ubuntu-latest-arm64 # <-- 1. USE NATIVE ARM RUNNER (LATEST)
+
+          - os: ubuntu-latest
             folder: linux-arm64
             type: build
-            install_deps: | # <-- 2. SIMPLIFY DEPENDENCIES
-              sudo apt-get update -y && sudo apt-get install -y yasm nasm pkg-config zlib1g-dev
-            configure_opts: >- # <-- 3. REMOVE CROSS-COMPILATION FLAGS
+            install_deps: |
+              sudo apt-get update -y && sudo apt-get install -y \
+                yasm nasm pkg-config zlib1g-dev \
+                gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
+            configure_opts: >-
               --arch=aarch64
+              --cross-prefix=aarch64-linux-gnu-
+              --target-os=linux
               --disable-gpl
               --disable-nonfree
               --disable-ffplay
@@ -160,7 +163,6 @@ jobs:
               --disable-libmp3lame
               --pkg-config-flags="--static"
               --extra-ldflags="-static"
-          # ---- END OF CHANGES ----
 
     defaults:
       run:
@@ -172,6 +174,10 @@ jobs:
         with:
           persist-credentials: true
           fetch-depth: 0
+
+      - name: Set up QEMU for cross-compilation
+        if: matrix.folder == 'linux-arm64'
+        uses: docker/setup-qemu-action@v3
 
       - name: Setup MSYS2 environment (Windows)
         if: runner.os == 'Windows' && matrix.type == 'build'
@@ -302,10 +308,11 @@ jobs:
           ls -l "${INSTALL_DIR}/bin/"
 
           if [[ -f "${INSTALL_DIR}/bin/${SRC_EXE_NAME}" ]]; then
-            # ---- START OF CHANGE ----
-            # 4. USE STANDARD STRIP (no cross-compile version needed)
-            strip "${INSTALL_DIR}/bin/${SRC_EXE_NAME}"
-            # ---- END OF CHANGE ----
+            if [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
+              aarch64-linux-gnu-strip "${INSTALL_DIR}/bin/${SRC_EXE_NAME}"
+            else
+              strip "${INSTALL_DIR}/bin/${SRC_EXE_NAME}"
+            fi
             mv "${INSTALL_DIR}/bin/${SRC_EXE_NAME}" "${INSTALL_DIR}/${FINAL_EXE_NAME}"
             if [[ "${{ runner.os }}" != "Windows" ]]; then
               chmod +x "${INSTALL_DIR}/${FINAL_EXE_NAME}"
