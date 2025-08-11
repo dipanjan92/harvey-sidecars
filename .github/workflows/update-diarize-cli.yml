@@ -44,12 +44,12 @@ jobs:
             folder: windows-arm64
           - os: ubuntu-latest
             folder: linux-x86_64
-          - os: ubuntu-latest # MODIFIED: Run on a standard x86 runner for emulation
+          - os: ubuntu-latest
             folder: linux-arm64
             
     defaults:
       run:
-        shell: bash # Sets the default shell for `run` steps
+        shell: bash
 
     steps:
       # Step 1: Checkout the repository code
@@ -71,11 +71,7 @@ jobs:
         with:
           python-version: '3.11'
 
-      # Step 3-9 [NATIVE]: The entire native build process
-      - name: Native Build Steps (non-ARM)
-        if: matrix.folder != 'linux-arm64'
-        run: echo "Skipping native build steps for ARM64 emulation."
-
+      # The following native steps are skipped for the ARM build
       - name: Install dependencies
         if: matrix.folder != 'linux-arm64'
         run: |
@@ -155,10 +151,8 @@ jobs:
           MATPLOTLIB_CACHE_DIR=$(python3 -c 'import matplotlib as mpl; print(mpl.get_cachedir())')
           if [ -d "$MATPLOTLIB_CACHE_DIR" ]; then
             if [[ "${{ runner.os }}" == "Windows" ]]; then
-              # Use cp on Windows Git Bash
               cp -R "$MATPLOTLIB_CACHE_DIR/" diarize-cli/resources/.matplotlib/
             else
-              # Use rsync on Unix
               rsync -av --exclude='*.lock' "$MATPLOTLIB_CACHE_DIR/" diarize-cli/resources/.matplotlib/
             fi
           fi
@@ -201,7 +195,7 @@ jobs:
       - name: Build for linux-arm64 using QEMU
         if: matrix.folder == 'linux-arm64'
         run: |
-          docker run --rm -v "${{ github.workspace }}:/app" -w /app \
+          docker run --rm --platform linux/arm64 -v "${{ github.workspace }}:/app" -w /app \
             -e HUGGINGFACE_TOKEN \
             arm64v8/python:3.11 \
             sh -c ' \
