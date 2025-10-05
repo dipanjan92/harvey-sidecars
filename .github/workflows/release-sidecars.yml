@@ -68,3 +68,14 @@ jobs:
     with:
       release_tag: ${{ github.event.inputs.tag }}
     secrets: inherit
+    permissions:
+      contents: write
+
+  build-translator:
+    needs: run-tests
+    uses: ./.github/workflows/update-translator-sidecar.yml
+    with:
+      release_tag: ${{ github.event.inputs.tag }}
+    secrets: inherit
+    permissions:
+      contents: write
