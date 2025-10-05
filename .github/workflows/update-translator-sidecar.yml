@@ -97,7 +97,7 @@ jobs:
         working-directory: translator
 
       - name: Build translator-sidecar
-        run: pkg translator/translator.mjs --targets ${{ matrix.pkg_target }} --output translator/translator-sidecar-${{ matrix.asset_name_suffix }}${{ matrix.executable_extension }}
+        run: pkg translator.mjs --targets ${{ matrix.pkg_target }} --output translator-sidecar-${{ matrix.asset_name_suffix }}${{ matrix.executable_extension }}
         working-directory: translator
 
       - name: Rename, checksum, and upload assets
