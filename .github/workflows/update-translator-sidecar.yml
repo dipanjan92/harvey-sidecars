@@ -64,9 +64,8 @@ jobs:
 
       - name: Upload Release Asset
         uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
         with:
-          tag_name: ${{ github.event.inputs.release_tag }}
+          tag_name: ${{ inputs.release_tag }}
           files: |
             translator/translator-sidecar-${{ matrix.asset_name_suffix }}${{ matrix.executable_extension }}
             translator/translator-sidecar-${{ matrix.asset_name_suffix }}${{ matrix.executable_extension }}.sha256
