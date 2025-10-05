@@ -104,40 +104,24 @@ jobs:
         run: pkg translator.mjs --targets ${{ matrix.pkg_target }} --output translator-sidecar-${{ matrix.asset_name_suffix }}${{ matrix.executable_extension }}
         working-directory: translator
 
-      - name: Build whisper-cli
-        run: pkg whisper.mjs --targets ${{ matrix.pkg_target }} --output whisper-cli-${{ matrix.asset_name_suffix }}${{ matrix.executable_extension }}
-        working-directory: whisper
-
       - name: Rename, checksum, and upload assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ needs.create-release.outputs.release_tag }}
         run: |
           set -ex
+          cd translator
 
-          # Define binaries to upload and their respective directories
-          declare -A binaries
-          binaries["translator-sidecar"]="translator"
-          binaries["whisper-cli"]="whisper"
+          BINARY_PATH="translator-sidecar-${{ matrix.asset_name_suffix }}${{ matrix.executable_extension }}"
+          SHA_PATH="${BINARY_PATH}.sha256"
 
-          for binary_name in "${!binaries[@]}"; do
-            binary_dir="${binaries[$binary_name]}"
-            
-            cd "$binary_dir"
+          # Calculate checksum
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            sha256sum "$BINARY_PATH" > "$SHA_PATH"
+          else
+            shasum -a 256 "$BINARY_PATH" > "$SHA_PATH"
+          fi
 
-            BINARY_PATH="${binary_name}-${{ matrix.asset_name_suffix }}${{ matrix.executable_extension }}"
-            SHA_PATH="${BINARY_PATH}.sha256"
-
-            # Calculate checksum
-            if [[ "${{ runner.os }}" == "Windows" ]]; then
-              sha256sum "$BINARY_PATH" > "$SHA_PATH"
-            else
-              shasum -a 256 "$BINARY_PATH" > "$SHA_PATH"
-            fi
-
-            echo "Uploading ${BINARY_PATH} and ${SHA_PATH} to release ${{ env.RELEASE_TAG }}"
-            gh release upload ${{ env.RELEASE_TAG }} "$BINARY_PATH" "$SHA_PATH" --clobber
-            
-            cd - # Go back to the previous directory
-          done
+          echo "Uploading ${BINARY_PATH} and ${SHA_PATH} to release ${{ env.RELEASE_TAG }}"
+          gh release upload ${{ env.RELEASE_TAG }} "$BINARY_PATH" "$SHA_PATH" --clobber
         shell: bash
