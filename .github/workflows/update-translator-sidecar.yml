@@ -120,3 +120,4 @@ jobs:
 
           echo "Uploading ${BINARY_PATH} and ${SHA_PATH} to release ${{ env.RELEASE_TAG }}"
           gh release upload ${{ env.RELEASE_TAG }} "$BINARY_PATH" "$SHA_PATH" --clobber
+        shell: bash
