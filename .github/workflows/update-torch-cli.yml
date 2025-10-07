@@ -71,6 +71,10 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Install FFmpeg (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ffmpeg
+
       # The following native steps are skipped for the ARM build
       - name: Install dependencies
         if: matrix.folder != 'linux-arm64'
@@ -104,8 +108,7 @@ jobs:
           import os
           from pyannote.audio import Pipeline
           Pipeline.from_pretrained(
-              "pyannote/speaker-diarization-3.1",
-              use_auth_token=os.environ["HUGGINGFACE_TOKEN"]
+              "pyannote/speaker-diarization-3.1"
           )
           EOF
 
@@ -213,7 +216,7 @@ jobs:
             hf auth login --token "$HUGGINGFACE_TOKEN" && \
             \
             # Step: Preload and copy models
-            python3 -c "from pyannote.audio import Pipeline; Pipeline.from_pretrained('pyannote/speaker-diarization-3.1', use_auth_token='$HUGGINGFACE_TOKEN')" && \
+            python3 -c "from pyannote.audio import Pipeline; Pipeline.from_pretrained('pyannote/speaker-diarization-3.1')" && \
             HF_CACHE_DIR="/root/.cache/torch/pyannote" && \
             mkdir -p torch-cli/models && \
             for d in "$HF_CACHE_DIR"/models--pyannote--*; do [ -d "$d" ] && rsync -aL "$d" torch-cli/models/; done && \
