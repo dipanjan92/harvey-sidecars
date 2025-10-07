@@ -20,7 +20,7 @@ on:
         type: string
 
 jobs:
-  build-diarize-matrix:
+  build-torch-cli-matrix:
     # Specifies the runner environment for the job
     # Uses a matrix strategy to run on different operating systems
     runs-on: ${{ matrix.os }}
@@ -79,9 +79,7 @@ jobs:
           pip install "numpy<2.0"
           if [[ "${{ runner.os }}" == "Linux" || "${{ runner.os }}" == "Windows" ]]; then
             pip install torch==2.3.0+cpu torchvision==0.18.0+cpu torchaudio==2.3.0+cpu --index-url https://download.pytorch.org/whl/cpu
-          else # macOS
-            pip install torch torchvision torchaudio
-          pip install pyannote.audio huggingface_hub pyinstaller matplotlib lightning_fabric speechbrain transformers sacremoses
+          pip install pyannote.audio huggingface_hub pyinstaller matplotlib lightning_fabric speechbrain transformers sacremoses pyinstaller-hooks-contrib
 
       - name: Log PyTorch/Torchaudio installation sizes (Linux only)
         if: runner.os == 'Linux' && matrix.folder != 'linux-arm64'
@@ -182,6 +180,7 @@ jobs:
             --hidden-import=pyannote.audio.models \
             --hidden-import=pyannote.audio.models.segmentation \
             --hidden-import=pyannote.audio.models.embedding \
+            --hidden-import=transformers \
             torch-cli/torch_cli.py
 
           echo "--- Size of dist directory (Linux only) ---"
@@ -205,7 +204,7 @@ jobs:
             pip install --upgrade pip && \
             pip install "numpy<2.0" && \
             pip install torch==2.3.0 torchvision==0.18.0 torchaudio==2.3.0 --index-url https://download.pytorch.org/whl/cpu && \
-            pip install pyannote.audio huggingface_hub pyinstaller matplotlib lightning_fabric speechbrain transformers sacremoses && \
+            pip install pyannote.audio huggingface_hub pyinstaller matplotlib lightning_fabric speechbrain transformers sacremoses pyinstaller-hooks-contrib && \
             \
             # Step: Log in
             hf auth login --token "$HUGGINGFACE_TOKEN" && \
@@ -237,6 +236,7 @@ jobs:
               --hidden-import=pyannote.audio.models \
               --hidden-import=pyannote.audio.models.segmentation \
               --hidden-import=pyannote.audio.models.embedding \
+              --hidden-import=transformers \
               torch-cli/torch_cli.py && \
             \
             # Step: Log final size
