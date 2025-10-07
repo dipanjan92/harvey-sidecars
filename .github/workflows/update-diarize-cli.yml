@@ -80,7 +80,7 @@ jobs:
         if: matrix.folder != 'linux-arm64'
         run: |
           python -m pip install --upgrade pip
-          if [[ "${{ runner.os }}" == "Linux" || "${{ runner.os }}" == "Windows" ]]
+          if [[ "${{ runner.os }}" == "Linux" || "${{ runner.os }}" == "Windows" ]]; then
             pip install "torch==2.3.0+cpu" "torchvision==0.18.0+cpu" "torchaudio==2.3.0+cpu" --index-url https://download.pytorch.org/whl/cpu
           else # macOS
             pip install "torch" "torchvision" "torchaudio"
