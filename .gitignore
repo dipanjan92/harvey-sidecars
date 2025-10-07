@@ -1,5 +1,3 @@
-
-
 # Ignore zip archives (intermediate download artifacts)
 *.zip
 
@@ -15,4 +13,7 @@ Desktop.ini
 .idea/
 
 # Log files
-*.log # Add a newline for separation if file exists
+*.log
+
+# Downloaded models
+models/
