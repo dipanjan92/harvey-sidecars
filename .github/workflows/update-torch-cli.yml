@@ -79,6 +79,9 @@ jobs:
           pip install "numpy<2.0"
           if [[ "${{ runner.os }}" == "Linux" || "${{ runner.os }}" == "Windows" ]]; then
             pip install torch==2.3.0+cpu torchvision==0.18.0+cpu torchaudio==2.3.0+cpu --index-url https://download.pytorch.org/whl/cpu
+          else # macOS
+            pip install torch torchvision torchaudio
+          fi
           pip install pyannote.audio huggingface_hub pyinstaller matplotlib lightning_fabric speechbrain transformers sacremoses pyinstaller-hooks-contrib
 
       - name: Log PyTorch/Torchaudio installation sizes (Linux only)
