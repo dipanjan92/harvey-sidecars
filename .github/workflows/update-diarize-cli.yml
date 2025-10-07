@@ -71,6 +71,10 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Install FFmpeg (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ffmpeg
+
       # The following native steps are skipped for the ARM build
       - name: Install dependencies
         if: matrix.folder != 'linux-arm64'
