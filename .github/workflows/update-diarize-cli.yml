@@ -215,7 +215,7 @@ jobs:
             hf auth login --token "$HUGGINGFACE_TOKEN" && \
             \
             # Step: Preload and copy models
-            python3 -c "from pyannote.audio import Pipeline; Pipeline.from_pretrained(\'pyannote/speaker-diarization-3.1\')" && \
+            python3 -c "from pyannote.audio import Pipeline; Pipeline.from_pretrained('pyannote/speaker-diarization-3.1')" && \
             HF_CACHE_DIR="/root/.cache/torch/pyannote" && \
             mkdir -p diarize-cli/models && \
             for d in "$HF_CACHE_DIR"/models--pyannote--*; do [ -d "$d" ] && rsync -aL "$d" diarize-cli/models/; done && \
@@ -225,7 +225,7 @@ jobs:
             python3 -c "import os, matplotlib as mpl; from matplotlib import font_manager as fm; fm.findSystemFonts()" && \
             mkdir -p diarize-cli/resources/.matplotlib && \
             MATPLOTLIB_CACHE_DIR=$(python3 -c "import matplotlib as mpl; print(mpl.get_cachedir())") && \
-            rsync -av --exclude='\''*.lock\'' "$MATPLOTLIB_CACHE_DIR/" diarize-cli/resources/.matplotlib/ && \
+            rsync -av --exclude='*.lock' "$MATPLOTLIB_CACHE_DIR/" diarize-cli/resources/.matplotlib/ && \
             du -sh diarize-cli/resources/.matplotlib && \
             \
             # Step: Locate paths and build
