@@ -77,7 +77,7 @@ def main():
         use_auth_token=False,
         cache_dir=model_cache
     )
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cpu")
     pipeline.to(device)
 
     # Build optional diarization parameters
