@@ -311,4 +311,4 @@ jobs:
           shasum -a 256 "${ZIP_ASSET}" > "${ZIP_ASSET}.sha256"
 
           # Upload assets
-          gh release upload ${{ needs.create-release.outputs.release_tag }} "${ZIP_ASSET}" "${ZIP_ASSET}.sha256" --clobber
+          gh release upload ${{ needs.create-release.outputs.release_tag }} "${ZIP_ASSET}" "${ZIP_ASSET}.sha256" --clobber --repo ${{ github.repository }}
