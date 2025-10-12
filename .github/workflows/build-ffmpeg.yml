@@ -180,7 +180,7 @@ jobs:
               --disable-libmp3lame
               --enable-pic
 
-defaults:
+    defaults:
       run:
         shell: bash
 
