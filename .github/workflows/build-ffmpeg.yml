@@ -48,6 +48,7 @@ jobs:
               --enable-videotoolbox
               --disable-libmp3lame
               --enable-pic
+              --extra-ldflags="-liconv"
 
           - os: macos-13
             folder: macos-x86_64
@@ -67,6 +68,7 @@ jobs:
               --enable-videotoolbox
               --disable-libmp3lame
               --enable-pic
+              --extra-ldflags="-liconv"
 
           - os: windows-latest
             folder: windows-x86_64
@@ -81,7 +83,8 @@ jobs:
               mingw-w64-x86_64-libiconv
             configure_opts: >-
               --target-os=win64
-              --disable-asm
+              --arch=x86_64
+              --cc=gcc
               --disable-gpl
               --disable-nonfree
               --disable-ffplay
@@ -147,8 +150,7 @@ jobs:
             install_deps: |
               set -e
               sudo dpkg --add-architecture arm64
-              # Remove default source file and replace with one that explicitly separates archs
-              sudo rm /etc/apt/sources.list.d/ubuntu.sources
+              sudo rm /etc/apt/sources.list.d/ubuntu.sources || true
               RELEASE_NAME=$(lsb_release -cs)
               cat <<-EOF | sudo tee /etc/apt/sources.list
               deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ ${RELEASE_NAME} main restricted universe multiverse
@@ -178,7 +180,7 @@ jobs:
               --disable-libmp3lame
               --enable-pic
 
-    defaults:
+defaults:
       run:
         shell: bash
 
@@ -194,7 +196,7 @@ jobs:
         uses: docker/setup-qemu-action@v3
 
       - name: Setup MSYS2 environment (Windows)
-        if: runner.os == 'Windows' && matrix.type == 'build'
+        if: runner.os == 'Windows'
         uses: msys2/setup-msys2@v2
         with:
           msystem: ${{ matrix.folder == 'windows-arm64' && 'CLANG64' || 'MINGW64' }}
@@ -202,9 +204,9 @@ jobs:
           install: ${{ matrix.install_deps }}
 
       - name: Install build prerequisites (macOS)
-        if: runner.os == 'macOS' && matrix.type == 'build'
+        if: runner.os == 'macOS'
         run: |
-          echo "Installing build dependencies on $RUNNER_OS for ${{ matrix.folder }}"
+          echo "Installing build prerequisites on $RUNNER_OS for ${{ matrix.folder }}"
           if [[ -n "${{ matrix.install_deps }}" ]]; then
             ${{ matrix.install_deps }}
           else
@@ -212,77 +214,22 @@ jobs:
           fi
 
       - name: Install build prerequisites (Linux)
-        if: runner.os == 'Linux' && matrix.type == 'build'
+        if: runner.os == 'Linux'
         run: |
-          echo "Installing build dependencies on $RUNNER_OS for ${{ matrix.folder }}"
+          echo "Installing build prerequisites on $RUNNER_OS for ${{ matrix.folder }}"
           ${{ matrix.install_deps }}
 
       - name: Clone FFmpeg source
-        if: matrix.type == 'build'
         run: |
           echo "Cloning FFmpeg source branch/tag: $FFMPEG_TAG for ${{ matrix.folder }}"
-          rm -rf ffmpeg-src # Clean before clone
+          rm -rf ffmpeg-src
           git clone --depth 1 --branch "$FFMPEG_TAG" https://git.ffmpeg.org/ffmpeg.git ffmpeg-src
 
-      - name: Configure & build FFmpeg (macOS)
-        if: matrix.type == 'build' && runner.os == 'macOS'
-        run: |
-          echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
-          CPU_COUNT=$(sysctl -n hw.logicalcpu)
-          echo "Using $CPU_COUNT cores for make"
-          
-          INSTALL_PREFIX="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
-          mkdir -p "${INSTALL_PREFIX}"
-          cd ffmpeg-src
-          
-          BASE_CONFIGURE_FLAGS=(
-            --prefix="${INSTALL_PREFIX}"
-            --enable-shared
-            --disable-static
-            --enable-pic
-          )
-          
-          echo "Running configure with matrix opts: ${{ matrix.configure_opts }}"
-          ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }}
-          
-          make -j${CPU_COUNT}
-          make install
-          cd ..
-
-      - name: Configure & build FFmpeg (Linux)
-        if: matrix.type == 'build' && runner.os == 'Linux'
-        run: |
-          echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
-          if [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
-            export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig
-          fi
-          CPU_COUNT=$(nproc)
-          echo "Using $CPU_COUNT cores for make"
-          
-          INSTALL_PREFIX="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
-          mkdir -p "${INSTALL_PREFIX}"
-          cd ffmpeg-src
-          
-          BASE_CONFIGURE_FLAGS=(
-            --prefix="${INSTALL_PREFIX}"
-            --enable-shared
-            --disable-static
-            --enable-pic
-          )
-          
-          echo "Running configure with matrix opts: ${{ matrix.configure_opts }}"
-          ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }}
-          
-          make -j${CPU_COUNT}
-          make install
-          cd ..
-
-      - name: Configure & build FFmpeg (Windows)
-        if: matrix.type == 'build' && runner.os == 'Windows'
+      - name: Configure & build FFmpeg
         shell: msys2 {0}
         run: |
           echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
-          CPU_COUNT=$(nproc)
+          CPU_COUNT=$(nproc 2>/dev/null || sysctl -n hw.logicalcpu)
           echo "Using $CPU_COUNT cores for make"
 
           INSTALL_PREFIX="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
@@ -308,24 +255,26 @@ jobs:
           cd ..
 
       - name: Package Binaries
-        if: matrix.type == 'build'
         id: package_binaries
         run: |
           echo "Packaging binaries for ${{ matrix.folder }} on ${{ matrix.os }}"
           INSTALL_DIR="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
-          cd "${INSTALL_DIR}"
+          ASSET_NAME="ffmpeg-${{ matrix.folder }}"
           
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            ASSET_NAME="ffmpeg-${{ matrix.folder }}.zip"
-            zip -r "${ASSET_NAME}" .
+            ASSET_FILENAME="${ASSET_NAME}.zip"
+            cd "${INSTALL_DIR}"
+            zip -r "../../${ASSET_FILENAME}" .
+            cd ../..
+            echo "ASSET_PATH=${{ github.workspace }}/${ASSET_FILENAME}" >> $GITHUB_OUTPUT
           else
-            ASSET_NAME="ffmpeg-${{ matrix.folder }}.tar.gz"
-            tar -czvf "${ASSET_NAME}" .
+            ASSET_FILENAME="${ASSET_NAME}.tar.gz"
+            tar -czvf "${ASSET_FILENAME}" -C "${INSTALL_DIR}" .
+            echo "ASSET_PATH=${{ github.workspace }}/ffmpeg/${ASSET_FILENAME}" >> $GITHUB_OUTPUT
           fi
           
-          echo "Created package: ${ASSET_NAME}"
-          echo "ASSET_PATH=${INSTALL_DIR}/${ASSET_NAME}" >> $GITHUB_OUTPUT
-          echo "ASSET_NAME=${ASSET_NAME}" >> $GITHUB_OUTPUT
+          echo "Created package: ${ASSET_FILENAME}"
+          echo "ASSET_NAME=${ASSET_FILENAME}" >> $GITHUB_OUTPUT
 
       - name: Ensure GitHub release
         id: ensure_release
