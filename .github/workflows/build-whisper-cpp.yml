@@ -288,23 +288,31 @@ jobs:
           echo "--- Prepared assets ---"
           ls -lh release_assets
 
-      - name: Package, checksum, and upload assets
+      - name: Install zip
+        if: runner.os == 'Windows'
+        run: choco install zip
+      - name: Upload assets
+        if: runner.os == 'Windows'
+        shell: C:\Program Files\Git\bin\bash.EXE --noprofile --norc -e -o pipefail {0}
         env:
+          SDL2_DIR: ${{ github.workspace }}/SDL2-install
+          TOOLCHAIN_DIR: ${{ steps.setup-msvc-dev.outputs.toolchain-path }}
+          MSYSTEM: ${{ matrix.msystem }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -ex
           cd release_assets
 
           # Create zip archive
-          ZIP_ASSET="whisper-sidecars-${{ matrix.folder }}.zip"
+          ZIP_ASSET="whisper-sidecars-${{ matrix.os }}-${{ matrix.arch }}.zip"
           zip "${ZIP_ASSET}" *
 
           # Create checksum
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
+          if [[ "Windows" == "${{ matrix.os }}" ]]; then
             sha256sum "${ZIP_ASSET}" > "${ZIP_ASSET}.sha256"
           else
             shasum -a 256 "${ZIP_ASSET}" > "${ZIP_ASSET}.sha256"
           fi
 
           # Upload assets
-          gh release upload ${{ needs.create-release.outputs.release_tag }} "${ZIP_ASSET}" "${ZIP_ASSET}.sha256" --clobber
+          gh release upload v0.2.0 "${ZIP_ASSET}" "${ZIP_ASSET}.sha256" --clobber
