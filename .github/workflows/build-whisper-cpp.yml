@@ -49,7 +49,7 @@ jobs:
                   repo: context.repo.repo,
                   tag_name: tag,
                   name: `Harvey Sidecars ${tag}`,
-                  body: `Automated build of whisper.cpp tools.`, 
+                  body: `Automated build of whisper.cpp tools.`,
                   draft: false,
                   prerelease: false,
                 });
@@ -64,6 +64,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       SDL2_DIR: "${{ github.workspace }}/SDL2-install"
+      TOOLCHAIN_DIR: ""
     strategy:
       fail-fast: false
       matrix:
@@ -85,7 +86,7 @@ jobs:
             cmake_opts: ""
           - os: ubuntu-latest
             folder: linux-arm64
-            cmake_opts: "-DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/whisper.cpp/cmake/toolchains/aarch64-linux-gnu.cmake"
+            cmake_opts: ""
     defaults:
       run:
         shell: bash
@@ -108,10 +109,31 @@ jobs:
       - name: Install prerequisites (Linux)
         if: runner.os == 'Linux'
         run: |
-          sudo apt-get update -y
+          set -e
           if [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
-            sudo apt-get install -y build-essential cmake curl gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libsdl2-dev-arm64-cross
+            sudo apt-get update -y
+            sudo apt-get install -y build-essential cmake curl
+            TOOLCHAIN_DIR_PATH="${{ github.workspace }}/arm-gnu-toolchain"
+            SDL2_INSTALL_PATH="${{ github.workspace }}/SDL2-install-arm64"
+            echo "TOOLCHAIN_DIR=${TOOLCHAIN_DIR_PATH}" >> $GITHUB_ENV
+            echo "SDL2_DIR=${SDL2_INSTALL_PATH}" >> $GITHUB_ENV
+            TOOLCHAIN_URL="https://developer.arm.com/-/media/Files/downloads/gnu/13.2.rel1/binrel/arm-gnu-toolchain-13.2.rel1-x86_64-aarch64-none-linux-gnu.tar.xz"
+            curl -L -o toolchain.tar.xz "${TOOLCHAIN_URL}"
+            mkdir -p "${TOOLCHAIN_DIR_PATH}"
+            tar -xJf toolchain.tar.xz -C "${TOOLCHAIN_DIR_PATH}" --strip-components=1
+            SDL2_VERSION="2.30.5"
+            curl -sL "https://github.com/libsdl-org/SDL/releases/download/release-${SDL2_VERSION}/SDL2-${SDL2_VERSION}.tar.gz" | tar xz
+            cd SDL2-${SDL2_VERSION}
+            mkdir build && cd build
+            cmake .. -DCMAKE_C_COMPILER="${TOOLCHAIN_DIR_PATH}/bin/aarch64-none-linux-gnu-gcc" \
+                     -DCMAKE_CXX_COMPILER="${TOOLCHAIN_DIR_PATH}/bin/aarch64-none-linux-gnu-g++" \
+                     -DCMAKE_INSTALL_PREFIX="${SDL2_INSTALL_PATH}" \
+                     -DSDL_STATIC=ON -DSDL_SHARED=OFF
+            make -j$(nproc)
+            make install
+            cd ../..
           else
+            sudo apt-get update -y
             sudo apt-get install -y build-essential cmake curl libsdl2-dev
           fi
 
@@ -149,7 +171,16 @@ jobs:
             -DCMAKE_PREFIX_PATH=${{ env.SDL2_DIR }}
             ${{ matrix.cmake_opts }}
           )
-          
+
+          if [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
+            CMAKE_FLAGS+=(
+              -DCMAKE_SYSTEM_NAME=Linux 
+              -DCMAKE_SYSTEM_PROCESSOR=aarch64 
+              -DCMAKE_C_COMPILER="${{ env.TOOLCHAIN_DIR }}/bin/aarch64-none-linux-gnu-gcc" 
+              -DCMAKE_CXX_COMPILER="${{ env.TOOLCHAIN_DIR }}/bin/aarch64-none-linux-gnu-g++"
+            )
+          fi
+
           cmake .. "${CMAKE_FLAGS[@]}"
           
           make -j$(nproc) main stream
@@ -163,6 +194,7 @@ jobs:
           
           cd "${{ github.workspace }}/whisper.cpp/build/bin"
           if [[ "${{ runner.os }}" == "Windows" ]]; then
+            cp "${{ env.SDL2_DIR }}/bin/SDL2.dll" "${ASSET_DIR}/"
             mv main.exe "${ASSET_DIR}/whisper-cli.exe"
             mv stream.exe "${ASSET_DIR}/whisper-stream.exe"
           else
