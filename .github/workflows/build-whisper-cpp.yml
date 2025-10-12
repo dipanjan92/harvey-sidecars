@@ -125,8 +125,8 @@ jobs:
           mkdir build && cd build
           cmake .. -DCMAKE_BUILD_TYPE=Release \
                    -DCMAKE_INSTALL_PREFIX="${{ env.SDL2_DIR }}" \
-                   -DSDL_STATIC=OFF \
-                   -DSDL_SHARED=ON \
+                   -DSDL_STATIC=ON \
+                   -DSDL_SHARED=OFF \
                    ${{ matrix.cmake_opts }}
           make -j$(nproc)
           make install
@@ -146,12 +146,9 @@ jobs:
             -DWHISPER_BUILD_EXAMPLES=ON
             -DWHISPER_BUILD_TESTS=OFF
             -DWHISPER_SDL2=ON
+            -DCMAKE_PREFIX_PATH=${{ env.SDL2_DIR }}
             ${{ matrix.cmake_opts }}
           )
-
-          if [[ "${{ runner.os }}" != "macOS" ]]; then
-            CMAKE_FLAGS+=(-DCMAKE_PREFIX_PATH=${{ env.SDL2_DIR }})
-          fi
           
           cmake .. "${CMAKE_FLAGS[@]}"
           
@@ -163,28 +160,33 @@ jobs:
           echo "Packaging binaries for ${{ matrix.folder }} on ${{ matrix.os }}"
           ASSET_DIR="${{ github.workspace }}/release_assets"
           mkdir -p "${ASSET_DIR}"
-          cd "${{ github.workspace }}/whisper.cpp/build/bin"
-
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
-            ASSET_CLI="whisper-cli-${{ matrix.folder }}.exe"
-            ASSET_STREAM="whisper-stream-${{ matrix.folder }}.exe"
-            cp "${{ env.SDL2_DIR }}/bin/SDL2.dll" "${ASSET_DIR}/"
-            mv main.exe "${ASSET_DIR}/${ASSET_CLI}"
-            mv stream.exe "${ASSET_DIR}/${ASSET_STREAM}"
-          else
-            ASSET_CLI="whisper-cli-${{ matrix.folder }}"
-            ASSET_STREAM="whisper-stream-${{ matrix.folder }}"
-            mv main "${ASSET_DIR}/${ASSET_CLI}"
-            mv stream "${ASSET_DIR}/${ASSET_STREAM}"
-          fi
           
-          echo "ASSET_CLI=${ASSET_CLI}" >> $GITHUB_OUTPUT
-          echo "ASSET_STREAM=${ASSET_STREAM}" >> $GITHUB_OUTPUT
+          cd "${{ github.workspace }}/whisper.cpp/build/bin"
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            mv main.exe "${ASSET_DIR}/whisper-cli.exe"
+            mv stream.exe "${ASSET_DIR}/whisper-stream.exe"
+          else
+            mv main "${ASSET_DIR}/whisper-cli"
+            mv stream "${ASSET_DIR}/whisper-stream"
+          fi
+
+          cd "${ASSET_DIR}"
+          ASSET_NAME="whisper-tools-${{ matrix.folder }}"
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            ASSET_FILENAME="${ASSET_NAME}.zip"
+            zip -r "${ASSET_FILENAME}" .
+          else
+            ASSET_FILENAME="${ASSET_NAME}.tar.gz"
+            tar -czvf "${ASSET_FILENAME}" .
+          fi
+
+          echo "Created package: ${ASSET_FILENAME}"
+          echo "ASSET_PATH=${ASSET_DIR}/${ASSET_FILENAME}" >> $GITHUB_OUTPUT
+          echo "ASSET_NAME=${ASSET_FILENAME}" >> $GITHUB_OUTPUT
 
       - name: Upload Binaries
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          cd "${{ github.workspace }}/release_assets"
-          echo "Uploading assets to release ${{ needs.create-release.outputs.release_tag }}"
-          gh release upload ${{ needs.create-release.outputs.release_tag }} ./* --clobber
+          echo "Uploading ${{ steps.package_binaries.outputs.ASSET_NAME }} to release ${{ needs.create-release.outputs.release_tag }}"
+          gh release upload ${{ needs.create-release.outputs.release_tag }} ${{ steps.package_binaries.outputs.ASSET_PATH }} --clobber
