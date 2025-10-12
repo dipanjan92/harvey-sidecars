@@ -98,6 +98,10 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install cmake sdl2
 
+      - name: Install prerequisites (Windows)
+        if: runner.os == 'Windows'
+        run: choco install zip
+
       - name: Setup MSYS2 environment (Windows)
         if: runner.os == 'Windows'
         uses: msys2/setup-msys2@v2
@@ -112,7 +116,7 @@ jobs:
           set -e
           if [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
             sudo apt-get update -y
-            sudo apt-get install -y build-essential cmake curl
+            sudo apt-get install -y build-essential cmake curl gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
             TOOLCHAIN_DIR_PATH="${{ github.workspace }}/arm-gnu-toolchain"
             SDL2_INSTALL_PATH="${{ github.workspace }}/SDL2-install-arm64"
             echo "TOOLCHAIN_DIR=${TOOLCHAIN_DIR_PATH}" >> $GITHUB_ENV
@@ -193,6 +197,8 @@ jobs:
           
           cd "${{ github.workspace }}/whisper.cpp/build/bin"
           if [[ "${{ runner.os }}" == "Windows" ]]; then
+            # SDL2.dll is needed at runtime for the stream executable
+            cp "${{ env.SDL2_DIR }}/bin/SDL2.dll" "${ASSET_DIR}/"
             mv main.exe "${ASSET_DIR}/whisper-cli.exe"
             mv stream.exe "${ASSET_DIR}/whisper-stream.exe"
           else
