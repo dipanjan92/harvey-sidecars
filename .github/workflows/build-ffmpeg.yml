@@ -1,0 +1,370 @@
+name: Build FFmpeg Shared Libraries
+
+permissions:
+  contents: write
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Tag to build'
+        required: true
+  workflow_call:
+    inputs:
+      release_tag:
+        description: 'Tag to build'
+        required: true
+        type: string
+
+env:
+  FFMPEG_TAG: "n5.1.4"
+
+jobs:
+  ffmpeg:
+    runs-on: ${{ matrix.os }}
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      MATRIX_FOLDER: ${{ matrix.folder }}
+      RELEASE_TAG: ${{ inputs.release_tag }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            folder: macos-arm64
+            type: build
+            install_deps: |
+              brew install yasm pkg-config nasm
+            configure_opts: >-
+              --arch=arm64
+              --disable-gpl
+              --disable-nonfree
+              --disable-ffplay
+              --disable-ffprobe
+              --disable-doc
+              --disable-autodetect
+              --enable-zlib
+              --enable-iconv
+              --enable-videotoolbox
+              --disable-libmp3lame
+              --enable-pic
+
+          - os: macos-13
+            folder: macos-x86_64
+            type: build
+            install_deps: |
+              brew install yasm pkg-config nasm
+            configure_opts: >-
+              --arch=x86_64
+              --disable-gpl
+              --disable-nonfree
+              --disable-ffplay
+              --disable-ffprobe
+              --disable-doc
+              --disable-autodetect
+              --enable-zlib
+              --enable-iconv
+              --enable-videotoolbox
+              --disable-libmp3lame
+              --enable-pic
+
+          - os: windows-latest
+            folder: windows-x86_64
+            type: build
+            install_deps: >-
+              make
+              mingw-w64-x86_64-gcc
+              mingw-w64-x86_64-yasm
+              mingw-w64-x86_64-nasm
+              mingw-w64-x86_64-pkg-config
+              mingw-w64-x86_64-zlib
+              mingw-w64-x86_64-libiconv
+            configure_opts: >-
+              --target-os=win64
+              --disable-asm
+              --disable-gpl
+              --disable-nonfree
+              --disable-ffplay
+              --disable-ffprobe
+              --disable-doc
+              --enable-zlib
+              --enable-iconv
+              --disable-libmp3lame
+              --enable-pic
+
+          - os: windows-latest
+            folder: windows-arm64
+            type: build
+            install_deps: >-
+              make
+              mingw-w64-clang-x86_64-toolchain
+              mingw-w64-clang-x86_64-lld
+              mingw-w64-clang-aarch64-pkg-config
+              mingw-w64-clang-aarch64-zlib
+              mingw-w64-clang-aarch64-libiconv
+            configure_opts: >-
+              --target-os=win64
+              --arch=aarch64
+              --cc=clang
+              --cxx=clang++
+              --ar=llvm-ar
+              --ranlib=llvm-ranlib
+              --enable-cross-compile
+              --disable-asm
+              --disable-gpl
+              --disable-nonfree
+              --disable-ffplay
+              --disable-ffprobe
+              --disable-doc
+              --enable-zlib
+              --enable-iconv
+              --disable-libmp3lame
+              --extra-cflags="-fuse-ld=lld"
+              --extra-cxxflags="-fuse-ld=lld"
+              --enable-pic
+
+          - os: ubuntu-latest
+            folder: linux-x86_64
+            type: build
+            install_deps: |
+              sudo apt-get update -y && sudo apt-get install -y yasm nasm pkg-config zlib1g-dev
+            configure_opts: >-
+              --arch=x86_64
+              --disable-gpl
+              --disable-nonfree
+              --disable-ffplay
+              --disable-ffprobe
+              --disable-doc
+              --disable-autodetect
+              --enable-zlib
+              --enable-iconv
+              --disable-libmp3lame
+              --enable-pic
+
+          - os: ubuntu-latest
+            folder: linux-arm64
+            type: build
+            install_deps: |
+              set -e
+              sudo dpkg --add-architecture arm64
+              # Remove default source file and replace with one that explicitly separates archs
+              sudo rm /etc/apt/sources.list.d/ubuntu.sources
+              RELEASE_NAME=$(lsb_release -cs)
+              cat <<-EOF | sudo tee /etc/apt/sources.list
+              deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ ${RELEASE_NAME} main restricted universe multiverse
+              deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ ${RELEASE_NAME}-updates main restricted universe multiverse
+              deb [arch=amd64] http://security.ubuntu.com/ubuntu/ ${RELEASE_NAME}-security main restricted universe multiverse
+              deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports ${RELEASE_NAME} main restricted universe multiverse
+              deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports ${RELEASE_NAME}-updates main restricted universe multiverse
+              deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports ${RELEASE_NAME}-security main restricted universe multiverse
+              EOF
+              sudo apt-get update
+              sudo apt-get install -y \
+                yasm nasm pkg-config \
+                gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu \
+                zlib1g-dev:arm64
+            configure_opts: >-
+              --arch=aarch64
+              --cross-prefix=aarch64-linux-gnu-
+              --target-os=linux
+              --disable-gpl
+              --disable-nonfree
+              --disable-ffplay
+              --disable-ffprobe
+              --disable-doc
+              --disable-autodetect
+              --enable-zlib
+              --enable-iconv
+              --disable-libmp3lame
+              --enable-pic
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Set up QEMU for cross-compilation
+        if: matrix.folder == 'linux-arm64'
+        uses: docker/setup-qemu-action@v3
+
+      - name: Setup MSYS2 environment (Windows)
+        if: runner.os == 'Windows' && matrix.type == 'build'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: ${{ matrix.folder == 'windows-arm64' && 'CLANG64' || 'MINGW64' }}
+          update: true
+          install: ${{ matrix.install_deps }}
+
+      - name: Install build prerequisites (macOS)
+        if: runner.os == 'macOS' && matrix.type == 'build'
+        run: |
+          echo "Installing build dependencies on $RUNNER_OS for ${{ matrix.folder }}"..."
+          if [[ -n "${{ matrix.install_deps }}" ]]; then
+            ${{ matrix.install_deps }}
+          else
+            echo "No specific install_deps for this macOS job."
+          fi
+
+      - name: Install build prerequisites (Linux)
+        if: runner.os == 'Linux' && matrix.type == 'build'
+        run: |
+          echo "Installing build dependencies on $RUNNER_OS for ${{ matrix.folder }}"..."
+          ${{ matrix.install_deps }}
+
+      - name: Clone FFmpeg source
+        if: matrix.type == 'build'
+        run: |
+          echo "Cloning FFmpeg source branch/tag: $FFMPEG_TAG for ${{ matrix.folder }}"
+          rm -rf ffmpeg-src # Clean before clone
+          git clone --depth 1 --branch "$FFMPEG_TAG" https://git.ffmpeg.org/ffmpeg.git ffmpeg-src
+
+      - name: Configure & build FFmpeg (macOS)
+        if: matrix.type == 'build' && runner.os == 'macOS'
+        run: |
+          echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
+          CPU_COUNT=$(sysctl -n hw.logicalcpu)
+          echo "Using $CPU_COUNT cores for make"
+          
+          INSTALL_PREFIX="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
+          mkdir -p "${INSTALL_PREFIX}"
+          cd ffmpeg-src
+          
+          BASE_CONFIGURE_FLAGS=(
+            --prefix="${INSTALL_PREFIX}"
+            --enable-shared
+            --disable-static
+            --enable-pic
+          )
+          
+          echo "Running configure with matrix opts: ${{ matrix.configure_opts }}"
+          ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }}
+          
+          make -j${CPU_COUNT}
+          make install
+          cd ..
+
+      - name: Configure & build FFmpeg (Linux)
+        if: matrix.type == 'build' && runner.os == 'Linux'
+        run: |
+          echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
+          if [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
+            export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig
+          fi
+          CPU_COUNT=$(nproc)
+          echo "Using $CPU_COUNT cores for make"
+          
+          INSTALL_PREFIX="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
+          mkdir -p "${INSTALL_PREFIX}"
+          cd ffmpeg-src
+          
+          BASE_CONFIGURE_FLAGS=(
+            --prefix="${INSTALL_PREFIX}"
+            --enable-shared
+            --disable-static
+            --enable-pic
+          )
+          
+          echo "Running configure with matrix opts: ${{ matrix.configure_opts }}"
+          ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }}
+          
+          make -j${CPU_COUNT}
+          make install
+          cd ..
+
+      - name: Configure & build FFmpeg (Windows)
+        if: matrix.type == 'build' && runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
+          CPU_COUNT=$(nproc)
+          echo "Using $CPU_COUNT cores for make"
+
+          INSTALL_PREFIX="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
+          mkdir -p "${INSTALL_PREFIX}"
+          cd ffmpeg-src
+
+          BASE_CONFIGURE_FLAGS=(
+            --prefix="${INSTALL_PREFIX}"
+            --enable-shared
+            --disable-static
+            --enable-pic
+          )
+
+          echo "Running configure with matrix opts: ${{ matrix.configure_opts }}"
+          if ! ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }}; then
+            echo "Configure failed. Dumping config.log"
+            cat ffbuild/config.log
+            exit 1
+          fi
+          
+          make -j${CPU_COUNT}
+          make install
+          cd ..
+
+      - name: Package Binaries
+        if: matrix.type == 'build'
+        run: |
+          echo "Packaging binaries for ${{ matrix.folder }} on ${{ matrix.os }}"
+          INSTALL_DIR="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
+          cd "${INSTALL_DIR}"
+          
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            ASSET_NAME="ffmpeg-${{ matrix.folder }}.zip"
+            zip -r "${ASSET_NAME}" .
+          else
+            ASSET_NAME="ffmpeg-${{ matrix.folder }}.tar.gz"
+            tar -czvf "${ASSET_NAME}" .
+          fi
+          
+          echo "Created package: ${ASSET_NAME}"
+          echo "ASSET_PATH=${INSTALL_DIR}/${ASSET_NAME}" >> $GITHUB_ENV
+          echo "ASSET_NAME=${ASSET_NAME}" >> $GITHUB_ENV
+
+      - name: Ensure GitHub release
+        id: ensure_release
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          result-encoding: string
+          script: |
+            const tag = process.env.RELEASE_TAG;
+            try {
+              const rel = await github.rest.repos.getReleaseByTag({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag
+              });
+              console.log(`Found existing release for tag ${tag}`);
+              return rel.data.upload_url;
+            } catch (e) {
+              if (e.status === 404) {
+                console.warn(`Release ${tag} not found, creating it.`);
+                const rel = await github.rest.repos.createRelease({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  tag_name: tag,
+                  name: `Harvey Sidecars ${tag}`,
+                  body: `Automated build of FFmpeg sidecars. Release tag: ${tag}. Commit: ${context.sha}`,
+                  draft: false,
+                  prerelease: false
+                });
+                console.log(`Created new release for tag ${tag}`);
+                return rel.data.upload_url;
+              } else {
+                console.error(`Error checking release: ${e.message}`);
+                throw e;
+              }
+            }
+
+      - name: Upload assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Uploading ${{ env.ASSET_NAME }} to release ${{ env.RELEASE_TAG }}"
+          gh release upload ${{ env.RELEASE_TAG }} ${{ env.ASSET_PATH }} --clobber
