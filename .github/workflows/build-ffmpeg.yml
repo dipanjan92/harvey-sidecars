@@ -297,7 +297,7 @@ jobs:
           )
 
           echo "Running configure with matrix opts: ${{ matrix.configure_opts }}"
-          if ! ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }}; then
+          if ! ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }};
             echo "Configure failed. Dumping config.log"
             cat ffbuild/config.log
             exit 1
@@ -309,6 +309,7 @@ jobs:
 
       - name: Package Binaries
         if: matrix.type == 'build'
+        id: package_binaries
         run: |
           echo "Packaging binaries for ${{ matrix.folder }} on ${{ matrix.os }}"
           INSTALL_DIR="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
@@ -323,8 +324,8 @@ jobs:
           fi
           
           echo "Created package: ${ASSET_NAME}"
-          echo "ASSET_PATH=${INSTALL_DIR}/${ASSET_NAME}" >> $GITHUB_ENV
-          echo "ASSET_NAME=${ASSET_NAME}" >> $GITHUB_ENV
+          echo "ASSET_PATH=${INSTALL_DIR}/${ASSET_NAME}" >> $GITHUB_OUTPUT
+          echo "ASSET_NAME=${ASSET_NAME}" >> $GITHUB_OUTPUT
 
       - name: Ensure GitHub release
         id: ensure_release
@@ -366,5 +367,5 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "Uploading ${{ env.ASSET_NAME }} to release ${{ env.RELEASE_TAG }}"
-          gh release upload ${{ env.RELEASE_TAG }} ${{ env.ASSET_PATH }} --clobber
+          echo "Uploading ${{ steps.package_binaries.outputs.ASSET_NAME }} to release ${{ env.RELEASE_TAG }}"
+          gh release upload ${{ env.RELEASE_TAG }} ${{ steps.package_binaries.outputs.ASSET_PATH }} --clobber
