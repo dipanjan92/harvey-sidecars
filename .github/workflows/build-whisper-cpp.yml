@@ -304,11 +304,11 @@ jobs:
           cd release_assets
 
           # Create zip archive
-          ZIP_ASSET="whisper-sidecars-${{ matrix.os }}-${{ matrix.arch }}.zip"
+          ZIP_ASSET="whisper-sidecars-${{ matrix.folder }}.zip"
           zip "${ZIP_ASSET}" *
 
           # Create checksum
           shasum -a 256 "${ZIP_ASSET}" > "${ZIP_ASSET}.sha256"
 
           # Upload assets
-          gh release upload v0.2.0 "${ZIP_ASSET}" "${ZIP_ASSET}.sha256" --clobber
+          gh release upload ${{ needs.create-release.outputs.release_tag }} "${ZIP_ASSET}" "${ZIP_ASSET}.sha256" --clobber
