@@ -1,4 +1,4 @@
-name: Build whisper.cpp Tools
+name: Build Whisper-CPP CLI & Stream
 
 permissions:
   contents: write
@@ -26,7 +26,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0 # Fetches all history for all tags
 
       - name: Ensure GitHub release exists for tag
         uses: actions/github-script@v7
@@ -35,7 +35,7 @@ jobs:
           script: |
             const tag = '${{ inputs.release_tag }}';
             try {
-              await github.rest.repos.getReleaseByTag({
+              const release = await github.rest.repos.getReleaseByTag({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 tag: tag,
@@ -44,12 +44,12 @@ jobs:
             } catch (error) {
               if (error.status === 404) {
                 console.log(`Creating new release for tag ${tag}.`);
-                await github.rest.repos.createRelease({
+                const release = await github.rest.repos.createRelease({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   tag_name: tag,
                   name: `Harvey Sidecars ${tag}`,
-                  body: `Automated build of whisper.cpp tools.`,
+                  body: `Automated build of whisper.cpp sidecars (whisper-cli and whisper-stream).`,
                   draft: false,
                   prerelease: false,
                 });
@@ -63,7 +63,8 @@ jobs:
     needs: create-release
     runs-on: ${{ matrix.os }}
     env:
-      SDL2_DIR: "${{ github.workspace }}/SDL2-install"
+      SDL2_DIR: "" # Initialize SDL2_DIR to avoid static analysis warnings
+      TOOLCHAIN_DIR: "" # Initialize TOOLCHAIN_DIR to avoid static analysis warnings
     strategy:
       fail-fast: false
       matrix:
@@ -95,124 +96,215 @@ jobs:
 
       - name: Install prerequisites (macOS)
         if: runner.os == 'macOS'
-        run: brew install cmake sdl2
+        run: brew install sdl2
 
-      - name: Install prerequisites (Windows)
-        if: runner.os == 'Windows'
-        run: choco install zip
-
-      - name: Setup MSYS2 environment (Windows)
-        if: runner.os == 'Windows'
+      - name: Setup MSYS2 environment (Windows ARM64)
+        if: matrix.folder == 'windows-arm64'
         uses: msys2/setup-msys2@v2
         with:
-          msystem: ${{ matrix.folder == 'windows-arm64' && 'CLANGARM64' || 'CLANG64' }}
+          msystem: CLANGARM64
           update: true
-          install: make cmake mingw-w64-clang-aarch64-toolchain mingw-w64-clang-x86_64-toolchain
+          install: >-
+            make
+            cmake
+            mingw-w64-clang-aarch64-toolchain
+            mingw-w64-clang-aarch64-pkg-config
+            mingw-w64-clang-aarch64-zlib
+            mingw-w64-clang-aarch64-libiconv
+            zip
+
+      - name: Setup MSYS2 environment (Windows x86_64)
+        if: matrix.folder == 'windows-x86_64'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: CLANG64
+          update: true
+          install: >-
+            make
+            cmake
+            mingw-w64-clang-x86_64-toolchain
+            mingw-w64-clang-x86_64-pkg-config
+            mingw-w64-clang-x86_64-zlib
+            mingw-w64-clang-x86_64-libiconv
+            zip
 
       - name: Install prerequisites (Linux)
         if: runner.os == 'Linux'
         run: |
           set -e
           if [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
+            # 1. Install host build tools for ARM64 cross-compilation
             sudo apt-get update -y
-            sudo apt-get install -y build-essential cmake curl gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
-            # Build SDL2 from source for linux-arm64 as there is no libsdl2-dev-arm64-cross package
+            sudo apt-get install -y build-essential cmake curl zip
+
+            # 2. Create a self-contained cross-compilation environment for ARM64
+            TOOLCHAIN_DIR_PATH="${{ github.workspace }}/arm-gnu-toolchain"
+            SDL2_INSTALL_PATH="${{ github.workspace }}/SDL2-install-arm64"
+            echo "TOOLCHAIN_DIR=${TOOLCHAIN_DIR_PATH}" >> $GITHUB_ENV
+            echo "SDL2_DIR=${SDL2_INSTALL_PATH}" >> $GITHUB_ENV
+
+            # 3. Download and extract the AArch64 toolchain
+            TOOLCHAIN_URL="https://developer.arm.com/-/media/Files/downloads/gnu/13.2.rel1/binrel/arm-gnu-toolchain-13.2.rel1-x86_64-aarch64-none-linux-gnu.tar.xz"
+            echo "Downloading toolchain..."
+            curl -L -o toolchain.tar.xz "${TOOLCHAIN_URL}"
+            echo "Extracting toolchain..."
+            mkdir -p "${TOOLCHAIN_DIR_PATH}"
+            tar -xJf toolchain.tar.xz -C "${TOOLCHAIN_DIR_PATH}" --strip-components=1
+
+            # 4. Download and build SDL2 from source using the cross-compiler
             SDL2_VERSION="2.30.5"
+            echo "Downloading SDL2 source..."
             curl -sL "https://github.com/libsdl-org/SDL/releases/download/release-${SDL2_VERSION}/SDL2-${SDL2_VERSION}.tar.gz" | tar xz
             cd SDL2-${SDL2_VERSION}
             mkdir build && cd build
-            # Use a specific install path for this platform
-            SDL2_INSTALL_PATH="${{ github.workspace }}/SDL2-install-arm64"
-            echo "SDL2_DIR=${SDL2_INSTALL_PATH}" >> $GITHUB_ENV
-            cmake .. -DCMAKE_INSTALL_PREFIX="${SDL2_INSTALL_PATH}" -DSDL_STATIC=ON -DSDL_SHARED=OFF -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/whisper.cpp/cmake/toolchains/aarch64-linux-gnu.cmake"
+            echo "Configuring and building SDL2 for aarch64..."
+            cmake .. -DCMAKE_C_COMPILER="${TOOLCHAIN_DIR_PATH}/bin/aarch64-none-linux-gnu-gcc" \
+                     -DCMAKE_CXX_COMPILER="${TOOLCHAIN_DIR_PATH}/bin/aarch64-none-linux-gnu-g++" \
+                     -DCMAKE_INSTALL_PREFIX="${SDL2_INSTALL_PATH}" \
+                     -DSDL_STATIC=ON \
+                     -DSDL_SHARED=OFF
             make -j$(nproc)
             make install
-            cd ../..
           else
+            # 1. Install host build tools for x86_64 static compilation
             sudo apt-get update -y
-            sudo apt-get install -y build-essential cmake curl libsdl2-dev
+            sudo apt-get install -y build-essential cmake curl zip
+
+            # 2. Set up environment for self-contained x86_64 build
+            SDL2_INSTALL_PATH="${{ github.workspace }}/SDL2-install-x86_64"
+            echo "SDL2_DIR=${SDL2_INSTALL_PATH}" >> $GITHUB_ENV
+
+            # 3. Download and build SDL2 from source using native compilers
+            SDL2_VERSION="2.30.5"
+            echo "Downloading SDL2 source..."
+            curl -sL "https://github.com/libsdl-org/SDL/releases/download/release-${SDL2_VERSION}/SDL2-${SDL2_VERSION}.tar.gz" | tar xz
+            cd SDL2-${SDL2_VERSION}
+            mkdir build && cd build
+            echo "Configuring and building SDL2 for x86_64..."
+            cmake .. -DCMAKE_INSTALL_PREFIX="${SDL2_INSTALL_PATH}" \
+                     -DSDL_STATIC=ON \
+                     -DSDL_SHARED=OFF
+            make -j$(nproc)
+            make install
           fi
 
-      - name: Build SDL2 (Windows only)
+      - name: Install prerequisites (Windows)
         if: runner.os == 'Windows'
+        shell: bash
         run: |
           SDL2_VERSION="2.30.5"
-          echo "Building SDL2 from source for ${{ matrix.folder }}"
+          echo "Building SDL2 from source for ${{ matrix.folder }}"...
           curl -sL "https://github.com/libsdl-org/SDL/releases/download/release-${SDL2_VERSION}/SDL2-${SDL2_VERSION}.tar.gz" | tar xz
           cd SDL2-${SDL2_VERSION}
+          rm -rf build
           mkdir build && cd build
           cmake .. -DCMAKE_BUILD_TYPE=Release \
-                   -DCMAKE_INSTALL_PREFIX="${{ env.SDL2_DIR }}" \
+                   -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/SDL2-install" \
                    -DSDL_STATIC=ON \
                    -DSDL_SHARED=OFF \
                    ${{ matrix.cmake_opts }}
-          make -j$(nproc)
-          make install
-          cd ..
+          if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
+            make -j$(nproc)
+            make install
+          else
+            cmake --build . --config Release
+            cmake --install . --config Release
+          fi
+          echo "SDL2_DIR=${{ github.workspace }}/SDL2-install" >> $GITHUB_ENV
+          cd ../..
+
+      - name: List installed SDL2 files (Debug)
+        if: runner.os == 'Windows' && matrix.folder == 'windows-arm64'
+        run: |
+          echo "Listing contents of ${{ github.workspace }}/SDL2-install:"
+          ls -R "${{ github.workspace }}/SDL2-install" || true
 
       - name: Clone whisper.cpp
         run: git clone --depth 1 --branch v1.6.2 https://github.com/ggml-org/whisper.cpp.git whisper.cpp
 
-      - name: Build whisper.cpp
+      - name: Build whisper-cpp
         run: |
+          rm -rf whisper.cpp/build
           mkdir -p whisper.cpp/build
           cd whisper.cpp/build
-          
-          CMAKE_FLAGS=(
-            -DCMAKE_BUILD_TYPE=Release
-            -DBUILD_SHARED_LIBS=OFF
-            -DWHISPER_BUILD_EXAMPLES=ON
-            -DWHISPER_BUILD_TESTS=OFF
-            -DWHISPER_SDL2=ON
-            -DCMAKE_PREFIX_PATH="${{ env.SDL2_DIR }}"
-            ${{ matrix.cmake_opts }}
-          )
+          INSTALL_PREFIX="${{ github.workspace }}/whisper-cpp-install/${{ matrix.folder }}"
+          mkdir -p "${INSTALL_PREFIX}"
 
-          if [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
-            CMAKE_FLAGS+=(-DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/whisper.cpp/cmake/toolchains/aarch64-linux-gnu.cmake)
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            CMAKE_COMMON_FLAGS="-DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON -DBUILD_EXAMPLES=OFF -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX}"
+            if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
+              cmake .. ${CMAKE_COMMON_FLAGS} -G "Unix Makefiles" -DCMAKE_CXX_STANDARD=17 -DCMAKE_CXX_STANDARD_REQUIRED=ON -DCMAKE_CXX_FLAGS="-std=c++17" -DCMAKE_PREFIX_PATH=${{ env.SDL2_DIR }} -DCMAKE_EXE_LINKER_FLAGS="-static -static-libgcc -static-libstdc++"
+              make -j$(nproc)
+              make install
+            else # For windows-x86_64 (MinGW/Clang)
+              cmake .. ${CMAKE_COMMON_FLAGS} -G "Unix Makefiles" -DCMAKE_CXX_STANDARD=17 -DCMAKE_CXX_STANDARD_REQUIRED=ON -DCMAKE_CXX_FLAGS="-std=c++17" -DCMAKE_PREFIX_PATH=${{ env.SDL2_DIR }} -DCMAKE_EXE_LINKER_FLAGS="-static -static-libgcc -static-libstdc++"
+              cmake --build . --config Release --target main --target stream
+            fi
+          elif [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
+            cmake .. -DCMAKE_BUILD_TYPE=Release \
+                     -DBUILD_SHARED_LIBS=OFF \
+                     -DWHISPER_SDL2=ON \
+                     -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
+                     -DCMAKE_SYSTEM_NAME=Linux \
+                     -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
+                     -DCMAKE_C_COMPILER="${{ env.TOOLCHAIN_DIR }}/bin/aarch64-none-linux-gnu-gcc" \
+                     -DCMAKE_CXX_COMPILER="${{ env.TOOLCHAIN_DIR }}/bin/aarch64-none-linux-gnu-g++" \
+                     -DCMAKE_PREFIX_PATH="${{ env.SDL2_DIR }}" \
+                     -DCMAKE_EXE_LINKER_FLAGS="-static"
+            make -j$(nproc)
+            make install
+          elif [[ "${{ matrix.folder }}" == "linux-x86_64" ]]; then
+            cmake .. -DCMAKE_BUILD_TYPE=Release \
+                     -DBUILD_SHARED_LIBS=OFF \
+                     -DWHISPER_SDL2=ON \
+                     -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
+                     -DCMAKE_PREFIX_PATH="${{ env.SDL2_DIR }}" \
+                     -DCMAKE_EXE_LINKER_FLAGS="-static"
+            make -j$(nproc)
+            make install
+          else # For macOS
+            cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" ${{ matrix.cmake_opts }}
+            cmake --build . --config Release --target install
           fi
 
-          cmake .. "${CMAKE_FLAGS[@]}"
-          
-          make -j$(nproc) main stream
-
-      - name: Package Binaries
-        id: package_binaries
+      - name: List installed whisper-cpp files (Debug)
         run: |
-          echo "Packaging binaries for ${{ matrix.folder }} on ${{ matrix.os }}"
-          ASSET_DIR="${{ github.workspace }}/release_assets"
-          mkdir -p "${ASSET_DIR}"
-          
-          cd "${{ github.workspace }}/whisper.cpp/build/bin"
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
-            mv main.exe "${ASSET_DIR}/whisper-cli.exe"
-            mv stream.exe "${ASSET_DIR}/whisper-stream.exe"
-          else
-            mv main "${ASSET_DIR}/whisper-cli"
-            mv stream "${ASSET_DIR}/whisper-stream"
-          fi
+          INSTALL_PREFIX="${{ github.workspace }}/whisper-cpp-install/${{ matrix.folder }}"
+          echo "Listing contents of ${INSTALL_PREFIX}:"
+          ls -R "${INSTALL_PREFIX}" || true
 
-          cd "${ASSET_DIR}"
-          ASSET_NAME="whisper-tools-${{ matrix.folder }}"
+      - name: Prepare assets for release
+        id: prepare_assets
+        run: |
+          mkdir -p release_assets
+          INSTALL_PREFIX="${{ github.workspace }}/whisper-cpp-install/${{ matrix.folder }}"
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            ASSET_FILENAME="${ASSET_NAME}.zip"
-            zip -r "${ASSET_FILENAME}" .
+            cp "whisper.cpp/build/bin/main.exe" release_assets/whisper-cli.exe
+            cp "whisper.cpp/build/bin/stream.exe" release_assets/whisper-stream.exe
           else
-            ASSET_FILENAME="${ASSET_NAME}.tar.gz"
-            tar -czvf "../${ASSET_FILENAME}" .
+            cp "whisper.cpp/build/bin/main" release_assets/whisper-cli
+            cp "whisper.cpp/build/bin/stream" release_assets/whisper-stream
           fi
+          echo "--- Prepared assets ---"
+          ls -lh release_assets
 
-          echo "Created package: ${ASSET_FILENAME}"
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
-            echo "ASSET_PATH=${ASSET_DIR}/${ASSET_FILENAME}" >> $GITHUB_OUTPUT
-          else
-            echo "ASSET_PATH=${ASSET_DIR}/../${ASSET_FILENAME}" >> $GITHUB_OUTPUT
-          fi
-          echo "ASSET_NAME=${ASSET_FILENAME}" >> $GITHUB_OUTPUT
-
-      - name: Upload Binaries
+      - name: Package, checksum, and upload assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "Uploading ${{ steps.package_binaries.outputs.ASSET_NAME }} to release ${{ needs.create-release.outputs.release_tag }}"
-          gh release upload ${{ needs.create-release.outputs.release_tag }} ${{ steps.package_binaries.outputs.ASSET_PATH }} --clobber
+          set -ex
+          cd release_assets
+
+          # Create zip archive
+          ZIP_ASSET="whisper-sidecars-${{ matrix.folder }}.zip"
+          zip "${ZIP_ASSET}" *
+
+          # Create checksum
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            sha256sum "${ZIP_ASSET}" > "${ZIP_ASSET}.sha256"
+          else
+            shasum -a 256 "${ZIP_ASSET}" > "${ZIP_ASSET}.sha256"
+          fi
+
+          # Upload assets
+          gh release upload ${{ needs.create-release.outputs.release_tag }} "${ZIP_ASSET}" "${ZIP_ASSET}.sha256" --clobber

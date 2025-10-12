@@ -1,4 +1,4 @@
-name: Build FFmpeg Shared Libraries
+name: Build FFmpeg From Source
 
 permissions:
   contents: write
@@ -47,6 +47,7 @@ jobs:
               --enable-iconv
               --enable-videotoolbox
               --disable-libmp3lame
+              --pkg-config-flags="--static"
               --extra-ldflags="-liconv"
 
           - os: macos-13 # For x86_64
@@ -66,6 +67,7 @@ jobs:
               --enable-iconv
               --enable-videotoolbox
               --disable-libmp3lame
+              --pkg-config-flags="--static"
               --extra-ldflags="-liconv"
 
           - os: windows-latest
@@ -137,7 +139,8 @@ jobs:
               --enable-zlib
               --enable-iconv
               --disable-libmp3lame
-              --enable-pic
+              --pkg-config-flags="--static"
+              --extra-ldflags="-static"
 
           - os: ubuntu-latest
             folder: linux-arm64
@@ -145,7 +148,8 @@ jobs:
             install_deps: |
               set -e
               sudo dpkg --add-architecture arm64
-              sudo rm /etc/apt/sources.list.d/ubuntu.sources || true
+              # Remove default source file and replace with one that explicitly separates archs
+              sudo rm /etc/apt/sources.list.d/ubuntu.sources
               RELEASE_NAME=$(lsb_release -cs)
               cat <<-EOF | sudo tee /etc/apt/sources.list
               deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ ${RELEASE_NAME} main restricted universe multiverse
@@ -173,7 +177,8 @@ jobs:
               --enable-zlib
               --enable-iconv
               --disable-libmp3lame
-              --enable-pic
+              --pkg-config-flags="--static"
+              --extra-ldflags="-static"
 
     defaults:
       run:
@@ -191,7 +196,7 @@ jobs:
         uses: docker/setup-qemu-action@v3
 
       - name: Setup MSYS2 environment (Windows)
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && matrix.type == 'build'
         uses: msys2/setup-msys2@v2
         with:
           msystem: ${{ matrix.folder == 'windows-arm64' && 'CLANG64' || 'MINGW64' }}
@@ -199,9 +204,9 @@ jobs:
           install: ${{ matrix.install_deps }}
 
       - name: Install build prerequisites (macOS)
-        if: runner.os == 'macOS'
+        if: runner.os == 'macOS' && matrix.type == 'build'
         run: |
-          echo "Installing build prerequisites on $RUNNER_OS for ${{ matrix.folder }}"
+          echo "Installing build dependencies on $RUNNER_OS for ${{ matrix.folder }}..."
           if [[ -n "${{ matrix.install_deps }}" ]]; then
             ${{ matrix.install_deps }}
           else
@@ -209,65 +214,139 @@ jobs:
           fi
 
       - name: Install build prerequisites (Linux)
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && matrix.type == 'build'
         run: |
-          echo "Installing build prerequisites on $RUNNER_OS for ${{ matrix.folder }}"
+          echo "Installing build dependencies on $RUNNER_OS for ${{ matrix.folder }}..."
           ${{ matrix.install_deps }}
 
       - name: Clone FFmpeg source
+        if: matrix.type == 'build'
         run: |
           echo "Cloning FFmpeg source branch/tag: $FFMPEG_TAG for ${{ matrix.folder }}"
-          rm -rf ffmpeg-src
+          rm -rf ffmpeg-src # Clean before clone
           git clone --depth 1 --branch "$FFMPEG_TAG" https://git.ffmpeg.org/ffmpeg.git ffmpeg-src
 
-      - name: Configure & build FFmpeg
-        shell: bash
+      - name: Configure & build FFmpeg (macOS)
+        if: matrix.type == 'build' && runner.os == 'macOS'
         run: |
+          echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
+          CPU_COUNT=$(sysctl -n hw.logicalcpu)
+          echo "Using $CPU_COUNT cores for make"
+          
+          INSTALL_PREFIX="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
+          mkdir -p "${INSTALL_PREFIX}"
+          cd ffmpeg-src
+          
+          BASE_CONFIGURE_FLAGS=(
+            --prefix="${INSTALL_PREFIX}"
+            --disable-shared
+            --enable-static
+            --pkg-config-flags="--static"
+          )
+          
+          echo "Running configure with matrix opts: ${{ matrix.configure_opts }}"
+          ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }}
+          
+          make -j${CPU_COUNT}
+          make install
+          cd ..
+
+      - name: Configure & build FFmpeg (Linux)
+        if: matrix.type == 'build' && runner.os == 'Linux'
+        run: |
+          echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
+          if [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
+            export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig
+          fi
+          CPU_COUNT=$(nproc)
+          echo "Using $CPU_COUNT cores for make"
+          
+          INSTALL_PREFIX="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
+          mkdir -p "${INSTALL_PREFIX}"
+          cd ffmpeg-src
+          
+          BASE_CONFIGURE_FLAGS=(
+            --prefix="${INSTALL_PREFIX}"
+            --disable-shared
+            --enable-static
+            --pkg-config-flags="--static"
+          )
+          
+          echo "Running configure with matrix opts: ${{ matrix.configure_opts }}"
+          ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }}
+          
+          make -j${CPU_COUNT}
+          make install
+          cd ..
+
+      - name: Configure & build FFmpeg (Windows)
+        if: matrix.type == 'build' && runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
+          CPU_COUNT=$(nproc)
+          echo "Using $CPU_COUNT cores for make"
+
+          INSTALL_PREFIX="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
+          mkdir -p "${INSTALL_PREFIX}"
+          cd ffmpeg-src
+
+          BASE_CONFIGURE_FLAGS=(
+            --prefix="${INSTALL_PREFIX}"
+            --disable-shared
+            --enable-static
+            --pkg-config-flags="--static"
+          )
+
+          echo "Running configure with matrix opts: ${{ matrix.configure_opts }}"
+          if ! ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }}; then
+            echo "Configure failed. Dumping config.log"
+            cat ffbuild/config.log
+            exit 1
+          fi
+          
+          make -j${CPU_COUNT}
+          make install
+          cd ..
+
+      - name: Trim Build and Rename
+        if: matrix.type == 'build'
+        run: |
+          echo "Trimming build for ${{ matrix.folder }} on ${{ matrix.os }}"
+          INSTALL_DIR="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
+          
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            msys2 -c "echo 'Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}'; \
-              CPU_COUNT=$(nproc); \
-              echo 'Using $CPU_COUNT cores for make'; \
-              INSTALL_PREFIX=\"${{ github.workspace }}/ffmpeg/${{ matrix.folder }}\"; \
-              mkdir -p \"${INSTALL_PREFIX}\"; \
-              cd ffmpeg-src; \
-              ./configure --prefix=\"${INSTALL_PREFIX}\" --enable-shared --disable-static --enable-pic ${{ matrix.configure_opts }}; \
-              make -j${CPU_COUNT}; \
-              make install; \
-              cd .."
+            SRC_EXE_NAME="ffmpeg.exe"
+            FINAL_EXE_NAME="ffmpeg-${{ matrix.folder }}.exe"
           else
-            echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
-            CPU_COUNT=$(nproc 2>/dev/null || sysctl -n hw.logicalcpu)
-            echo "Using $CPU_COUNT cores for make"
-            INSTALL_PREFIX="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
-            mkdir -p "${INSTALL_PREFIX}"
-            cd ffmpeg-src
-            ./configure --prefix="${INSTALL_PREFIX}" --enable-shared --disable-static --enable-pic ${{ matrix.configure_opts }}
-            make -j${CPU_COUNT}
-            make install
-            cd ..
+            SRC_EXE_NAME="ffmpeg"
+            FINAL_EXE_NAME="ffmpeg-${{ matrix.folder }}"
           fi
 
-      - name: Package Binaries
-        id: package_binaries
-        run: |
-          echo "Packaging binaries for ${{ matrix.folder }} on ${{ matrix.os }}"
-          INSTALL_DIR="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
-          ASSET_NAME="ffmpeg-${{ matrix.folder }}"
-          
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
-            ASSET_FILENAME="${ASSET_NAME}.zip"
-            cd "${INSTALL_DIR}"
-            zip -r "../../${ASSET_FILENAME}" .
-            cd ../..
-            echo "ASSET_PATH=${{ github.workspace }}/${ASSET_FILENAME}" >> $GITHUB_OUTPUT
+          echo "Looking for ffmpeg executable in ${INSTALL_DIR}/bin/"
+          ls -l "${INSTALL_DIR}/bin/"
+
+          if [[ -f "${INSTALL_DIR}/bin/${SRC_EXE_NAME}" ]]; then
+            if [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
+              aarch64-linux-gnu-strip "${INSTALL_DIR}/bin/${SRC_EXE_NAME}"
+            else
+              strip "${INSTALL_DIR}/bin/${SRC_EXE_NAME}"
+            fi
+            mv "${INSTALL_DIR}/bin/${SRC_EXE_NAME}" "${INSTALL_DIR}/${FINAL_EXE_NAME}"
+            if [[ "${{ runner.os }}" != "Windows" ]]; then
+              chmod +x "${INSTALL_DIR}/${FINAL_EXE_NAME}"
+            fi
+            echo "Moved, stripped, and renamed binary to ${FINAL_EXE_NAME} in ${INSTALL_DIR}/"
           else
-            ASSET_FILENAME="${ASSET_NAME}.tar.gz"
-            tar -czvf "${ASSET_FILENAME}" -C "${INSTALL_DIR}" .
-            echo "ASSET_PATH=${{ github.workspace }}/ffmpeg/${ASSET_FILENAME}" >> $GITHUB_OUTPUT
+            echo "Error: ${SRC_EXE_NAME} not found in ${INSTALL_DIR}/bin/"
+            find "${INSTALL_DIR}" -name "${SRC_EXE_NAME}" -print
+            exit 1
           fi
-          
-          echo "Created package: ${ASSET_FILENAME}"
-          echo "ASSET_NAME=${ASSET_FILENAME}" >> $GITHUB_OUTPUT
+
+          echo "Removing bin, include, lib, share directories from ${INSTALL_DIR}"
+          rm -rf "${INSTALL_DIR}/bin" "${INSTALL_DIR}/include" "${INSTALL_DIR}/lib" "${INSTALL_DIR}/share" "${INSTALL_DIR}/doc"
+          echo "Contents of ${INSTALL_DIR} after trim:"
+          ls -R "${INSTALL_DIR}"
 
       - name: Ensure GitHub release
         id: ensure_release
@@ -309,5 +388,22 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "Uploading ${{ steps.package_binaries.outputs.ASSET_NAME }} to release ${{ env.RELEASE_TAG }}"
-          gh release upload ${{ env.RELEASE_TAG }} ${{ steps.package_binaries.outputs.ASSET_PATH }} --clobber
+          cd ffmpeg/${{ matrix.folder }}
+          
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            ASSET_NAME="ffmpeg-${{ matrix.folder }}.exe"
+          else
+            ASSET_NAME="ffmpeg-${{ matrix.folder }}"
+          fi
+
+          # Create checksum file
+          echo "Creating checksum for ${ASSET_NAME}"
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            sha256sum $ASSET_NAME > ${ASSET_NAME}.sha256
+          else
+            shasum -a 256 $ASSET_NAME > ${ASSET_NAME}.sha256
+          fi
+
+          echo "Uploading ${ASSET_NAME} and ${ASSET_NAME}.sha256 to release ${{ env.RELEASE_TAG }}"
+          gh release upload ${{ env.RELEASE_TAG }} ${ASSET_NAME} --clobber
+          gh release upload ${{ env.RELEASE_TAG }} ${ASSET_NAME}.sha256 --clobber
