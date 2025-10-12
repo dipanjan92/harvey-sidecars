@@ -49,7 +49,7 @@ jobs:
                   repo: context.repo.repo,
                   tag_name: tag,
                   name: `Harvey Sidecars ${tag}`,
-                  body: `Automated build of whisper.cpp shared libraries.`, 
+                  body: `Automated build of whisper.cpp shared libraries.`,
                   draft: false,
                   prerelease: false,
                 });
@@ -62,9 +62,6 @@ jobs:
     name: Build & Upload Binaries
     needs: create-release
     runs-on: ${{ matrix.os }}
-    env:
-      SDL2_DIR: ""
-      TOOLCHAIN_DIR: ""
     strategy:
       fail-fast: false
       matrix:
@@ -96,49 +93,19 @@ jobs:
 
       - name: Install prerequisites (macOS)
         if: runner.os == 'macOS'
-        run: brew install sdl2
+        run: brew install cmake
 
-      - name: Setup MSYS2 environment (Windows ARM64)
-        if: matrix.folder == 'windows-arm64'
+      - name: Setup MSYS2 environment (Windows)
+        if: runner.os == 'Windows'
         uses: msys2/setup-msys2@v2
         with:
-          msystem: CLANGARM64
+          msystem: ${{ matrix.folder == 'windows-arm64' && 'CLANGARM64' || 'CLANG64' }}
           update: true
-          install: make cmake mingw-w64-clang-aarch64-toolchain
-
-      - name: Setup MSYS2 environment (Windows x86_64)
-        if: matrix.folder == 'windows-x86_64'
-        uses: msys2/setup-msys2@v2
-        with:
-          msystem: CLANG64
-          update: true
-          install: make cmake mingw-w64-clang-x86_64-toolchain
+          install: make cmake mingw-w64-clang-aarch64-toolchain mingw-w64-clang-x86_64-toolchain
 
       - name: Install prerequisites (Linux)
         if: runner.os == 'Linux'
-        run: |
-          set -e
-          sudo apt-get update -y
-          sudo apt-get install -y build-essential cmake curl libsdl2-dev
-
-      - name: Install prerequisites (Windows)
-        if: runner.os == 'Windows'
-        shell: bash
-        run: |
-          SDL2_VERSION="2.30.5"
-          echo "Building SDL2 from source for ${{ matrix.folder }}"
-          curl -sL "https://github.com/libsdl-org/SDL/releases/download/release-${SDL2_VERSION}/SDL2-${SDL2_VERSION}.tar.gz" | tar xz
-          cd SDL2-${SDL2_VERSION}
-          mkdir build && cd build
-          cmake .. -DCMAKE_BUILD_TYPE=Release \
-                   -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/SDL2-install" \
-                   -DSDL_STATIC=OFF \
-                   -DSDL_SHARED=ON \
-                   ${{ matrix.cmake_opts }}
-          make -j$(nproc)
-          make install
-          echo "SDL2_DIR=${{ github.workspace }}/SDL2-install" >> $GITHUB_ENV
-          cd ../..
+        run: sudo apt-get update -y && sudo apt-get install -y build-essential cmake curl
 
       - name: Clone whisper.cpp
         run: git clone --depth 1 --branch v1.6.2 https://github.com/ggml-org/whisper.cpp.git whisper.cpp
@@ -153,14 +120,10 @@ jobs:
             -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}"
             -DCMAKE_BUILD_TYPE=Release
             -DBUILD_SHARED_LIBS=ON
-            -DWHISPER_SDL2=ON
-            -DBUILD_EXAMPLES=ON # Keep examples to get whisper-cli and whisper-stream
+            -DWHISPER_BUILD_EXAMPLES=OFF
+            -DWHISPER_BUILD_TESTS=OFF
             ${{ matrix.cmake_opts }}
           )
-
-          if [[ "${{ runner.os }}" != "macOS" ]]; then
-            CMAKE_FLAGS+=(-DCMAKE_PREFIX_PATH=${{ env.SDL2_DIR }})
-          fi
           
           cmake .. "${CMAKE_FLAGS[@]}"
           
@@ -172,19 +135,22 @@ jobs:
         run: |
           echo "Packaging binaries for ${{ matrix.folder }} on ${{ matrix.os }}"
           INSTALL_DIR="${{ github.workspace }}/whisper-cpp-install/${{ matrix.folder }}"
-          cd "${INSTALL_DIR}"
+          ASSET_NAME="whisper-cpp-${{ matrix.folder }}"
           
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            ASSET_NAME="whisper-cpp-${{ matrix.folder }}.zip"
-            zip -r "${ASSET_NAME}" .
+            ASSET_FILENAME="${ASSET_NAME}.zip"
+            cd "${INSTALL_DIR}"
+            zip -r "../${ASSET_FILENAME}" .
+            cd ..
+            echo "ASSET_PATH=${INSTALL_DIR}/../${ASSET_FILENAME}" >> $GITHUB_OUTPUT
           else
-            ASSET_NAME="whisper-cpp-${{ matrix.folder }}.tar.gz"
-            tar -czvf "${ASSET_NAME}" .
+            ASSET_FILENAME="${ASSET_NAME}.tar.gz"
+            tar -czvf "${ASSET_FILENAME}" -C "${INSTALL_DIR}" .
+            echo "ASSET_PATH=${{ github.workspace }}/whisper-cpp-install/${ASSET_FILENAME}" >> $GITHUB_OUTPUT
           fi
           
-          echo "Created package: ${ASSET_NAME}"
-          echo "ASSET_PATH=${INSTALL_DIR}/${ASSET_NAME}" >> $GITHUB_OUTPUT
-          echo "ASSET_NAME=${ASSET_NAME}" >> $GITHUB_OUTPUT
+          echo "Created package: ${ASSET_FILENAME}"
+          echo "ASSET_NAME=${ASSET_FILENAME}" >> $GITHUB_OUTPUT
 
       - name: Upload Binaries
         env:
