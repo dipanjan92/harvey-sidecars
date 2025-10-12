@@ -168,14 +168,13 @@ jobs:
             -DWHISPER_BUILD_EXAMPLES=ON
             -DWHISPER_BUILD_TESTS=OFF
             -DWHISPER_SDL2=ON
-            -DCMAKE_PREFIX_PATH=${{ env.SDL2_DIR }}
+            -DCMAKE_PREFIX_PATH="${{ env.SDL2_DIR }}"
             ${{ matrix.cmake_opts }}
           )
 
           if [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
             CMAKE_FLAGS+=(
-              -DCMAKE_SYSTEM_NAME=Linux 
-              -DCMAKE_SYSTEM_PROCESSOR=aarch64 
+              -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/whisper.cpp/cmake/toolchains/aarch64-linux-gnu.cmake
               -DCMAKE_C_COMPILER="${{ env.TOOLCHAIN_DIR }}/bin/aarch64-none-linux-gnu-gcc" 
               -DCMAKE_CXX_COMPILER="${{ env.TOOLCHAIN_DIR }}/bin/aarch64-none-linux-gnu-g++"
             )
@@ -194,7 +193,6 @@ jobs:
           
           cd "${{ github.workspace }}/whisper.cpp/build/bin"
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            cp "${{ env.SDL2_DIR }}/bin/SDL2.dll" "${ASSET_DIR}/"
             mv main.exe "${ASSET_DIR}/whisper-cli.exe"
             mv stream.exe "${ASSET_DIR}/whisper-stream.exe"
           else
@@ -209,11 +207,15 @@ jobs:
             zip -r "${ASSET_FILENAME}" .
           else
             ASSET_FILENAME="${ASSET_NAME}.tar.gz"
-            tar -czvf "${ASSET_FILENAME}" .
+            tar -czvf "../${ASSET_FILENAME}" .
           fi
 
           echo "Created package: ${ASSET_FILENAME}"
-          echo "ASSET_PATH=${ASSET_DIR}/${ASSET_FILENAME}" >> $GITHUB_OUTPUT
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            echo "ASSET_PATH=${ASSET_DIR}/${ASSET_FILENAME}" >> $GITHUB_OUTPUT
+          else
+            echo "ASSET_PATH=${ASSET_DIR}/../${ASSET_FILENAME}" >> $GITHUB_OUTPUT
+          fi
           echo "ASSET_NAME=${ASSET_FILENAME}" >> $GITHUB_OUTPUT
 
       - name: Upload Binaries
