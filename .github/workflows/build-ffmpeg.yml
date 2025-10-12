@@ -30,7 +30,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-14
+          - os: macos-14 # For arm64
             folder: macos-arm64
             type: build
             install_deps: |
@@ -47,10 +47,9 @@ jobs:
               --enable-iconv
               --enable-videotoolbox
               --disable-libmp3lame
-              --enable-pic
               --extra-ldflags="-liconv"
 
-          - os: macos-13
+          - os: macos-13 # For x86_64
             folder: macos-x86_64
             type: build
             install_deps: |
@@ -67,7 +66,6 @@ jobs:
               --enable-iconv
               --enable-videotoolbox
               --disable-libmp3lame
-              --enable-pic
               --extra-ldflags="-liconv"
 
           - os: windows-latest
@@ -83,8 +81,7 @@ jobs:
               mingw-w64-x86_64-libiconv
             configure_opts: >-
               --target-os=win64
-              --arch=x86_64
-              --cc=gcc
+              --disable-asm
               --disable-gpl
               --disable-nonfree
               --disable-ffplay
@@ -93,7 +90,6 @@ jobs:
               --enable-zlib
               --enable-iconv
               --disable-libmp3lame
-              --enable-pic
 
           - os: windows-latest
             folder: windows-arm64
@@ -124,7 +120,6 @@ jobs:
               --disable-libmp3lame
               --extra-cflags="-fuse-ld=lld"
               --extra-cxxflags="-fuse-ld=lld"
-              --enable-pic
 
           - os: ubuntu-latest
             folder: linux-x86_64
@@ -226,33 +221,31 @@ jobs:
           git clone --depth 1 --branch "$FFMPEG_TAG" https://git.ffmpeg.org/ffmpeg.git ffmpeg-src
 
       - name: Configure & build FFmpeg
-        shell: msys2 {0}
+        shell: bash
         run: |
-          echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
-          CPU_COUNT=$(nproc 2>/dev/null || sysctl -n hw.logicalcpu)
-          echo "Using $CPU_COUNT cores for make"
-
-          INSTALL_PREFIX="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
-          mkdir -p "${INSTALL_PREFIX}"
-          cd ffmpeg-src
-
-          BASE_CONFIGURE_FLAGS=(
-            --prefix="${INSTALL_PREFIX}"
-            --enable-shared
-            --disable-static
-            --enable-pic
-          )
-
-          echo "Running configure with matrix opts: ${{ matrix.configure_opts }}"
-          if ! ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }}; then
-            echo "Configure failed. Dumping config.log"
-            cat ffbuild/config.log
-            exit 1
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            msys2 -c "echo 'Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}'; \
+              CPU_COUNT=$(nproc); \
+              echo 'Using $CPU_COUNT cores for make'; \
+              INSTALL_PREFIX=\"${{ github.workspace }}/ffmpeg/${{ matrix.folder }}\"; \
+              mkdir -p \"${INSTALL_PREFIX}\"; \
+              cd ffmpeg-src; \
+              ./configure --prefix=\"${INSTALL_PREFIX}\" --enable-shared --disable-static --enable-pic ${{ matrix.configure_opts }}; \
+              make -j${CPU_COUNT}; \
+              make install; \
+              cd .."
+          else
+            echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
+            CPU_COUNT=$(nproc 2>/dev/null || sysctl -n hw.logicalcpu)
+            echo "Using $CPU_COUNT cores for make"
+            INSTALL_PREFIX="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
+            mkdir -p "${INSTALL_PREFIX}"
+            cd ffmpeg-src
+            ./configure --prefix="${INSTALL_PREFIX}" --enable-shared --disable-static --enable-pic ${{ matrix.configure_opts }}
+            make -j${CPU_COUNT}
+            make install
+            cd ..
           fi
-          
-          make -j${CPU_COUNT}
-          make install
-          cd ..
 
       - name: Package Binaries
         id: package_binaries
