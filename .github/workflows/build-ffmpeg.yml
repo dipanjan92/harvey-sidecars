@@ -204,7 +204,7 @@ jobs:
       - name: Install build prerequisites (macOS)
         if: runner.os == 'macOS' && matrix.type == 'build'
         run: |
-          echo "Installing build dependencies on $RUNNER_OS for ${{ matrix.folder }}"..."
+          echo "Installing build dependencies on $RUNNER_OS for ${{ matrix.folder }}"
           if [[ -n "${{ matrix.install_deps }}" ]]; then
             ${{ matrix.install_deps }}
           else
@@ -214,7 +214,7 @@ jobs:
       - name: Install build prerequisites (Linux)
         if: runner.os == 'Linux' && matrix.type == 'build'
         run: |
-          echo "Installing build dependencies on $RUNNER_OS for ${{ matrix.folder }}"..."
+          echo "Installing build dependencies on $RUNNER_OS for ${{ matrix.folder }}"
           ${{ matrix.install_deps }}
 
       - name: Clone FFmpeg source
