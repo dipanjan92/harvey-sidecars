@@ -308,11 +308,7 @@ jobs:
           zip "${ZIP_ASSET}" *
 
           # Create checksum
-          if [[ "Windows" == "${{ matrix.os }}" ]]; then
-            sha256sum "${ZIP_ASSET}" > "${ZIP_ASSET}.sha256"
-          else
-            shasum -a 256 "${ZIP_ASSET}" > "${ZIP_ASSET}.sha256"
-          fi
+          shasum -a 256 "${ZIP_ASSET}" > "${ZIP_ASSET}.sha256"
 
           # Upload assets
           gh release upload v0.2.0 "${ZIP_ASSET}" "${ZIP_ASSET}.sha256" --clobber
