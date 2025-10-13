@@ -90,6 +90,9 @@ jobs:
               --enable-zlib
               --enable-iconv
               --disable-libmp3lame
+              --nm=nm
+              --ar=ar
+              --dlltool=dlltool
 
           - os: windows-latest
             folder: windows-arm64
@@ -120,6 +123,8 @@ jobs:
               --disable-libmp3lame
               --extra-cflags="-fuse-ld=lld"
               --extra-cxxflags="-fuse-ld=lld"
+              --nm=llvm-nm
+              --dlltool=dlltool
 
           - os: ubuntu-latest
             folder: linux-x86_64
