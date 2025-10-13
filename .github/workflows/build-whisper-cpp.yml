@@ -301,14 +301,13 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -ex
-          cd release_assets
 
           # Create zip archive
           ZIP_ASSET="whisper-sidecars-${{ matrix.folder }}.zip"
-          zip "${ZIP_ASSET}" *
+          (cd release_assets && zip "${ZIP_ASSET}" *)
 
           # Create checksum
-          shasum -a 256 "${ZIP_ASSET}" > "${ZIP_ASSET}.sha256"
+          shasum -a 256 "release_assets/${ZIP_ASSET}" > "release_assets/${ZIP_ASSET}.sha256"
 
           # Upload assets
-          gh release upload ${{ needs.create-release.outputs.release_tag }} "./${ZIP_ASSET}" "./${ZIP_ASSET}.sha256" --clobber --repo ${{ github.repository }}
+          gh release upload ${{ needs.create-release.outputs.release_tag }} "release_assets/${ZIP_ASSET}" "release_assets/${ZIP_ASSET}.sha256" --clobber --repo ${{ github.repository }}
