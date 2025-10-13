@@ -293,21 +293,20 @@ jobs:
         run: choco install zip
       - name: Upload assets
         if: runner.os == 'Windows'
-        shell: C:\Program Files\Git\bin\bash.EXE --noprofile --norc -e -o pipefail {0}
+        shell: pwsh
         env:
-          SDL2_DIR: ${{ github.workspace }}/SDL2-install
-          TOOLCHAIN_DIR: ${{ steps.setup-msvc-dev.outputs.toolchain-path }}
-          MSYSTEM: ${{ matrix.msystem }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -ex
+          $ErrorActionPreference = "Stop"
+          $ZipAsset = "whisper-sidecars-${{ matrix.folder }}.zip"
 
-          # Create zip archive
-          ZIP_ASSET="whisper-sidecars-${{ matrix.folder }}.zip"
-          (cd release_assets && zip "${ZIP_ASSET}" *)
+          Push-Location release_assets
+          Compress-Archive -Path * -DestinationPath $ZipAsset -Force
+          Pop-Location
 
-          # Create checksum
-          shasum -a 256 "release_assets/${ZIP_ASSET}" > "release_assets/${ZIP_ASSET}.sha256"
+          $ZipPath = "release_assets/$ZipAsset"
+          $ChecksumPath = "$($ZipPath).sha256"
+          $hash = (Get-FileHash $ZipPath -Algorithm SHA256).Hash.ToLower()
+          Set-Content -Path $ChecksumPath -Value "$hash  $ZipAsset"
 
-          # Upload assets
-          gh release upload ${{ needs.create-release.outputs.release_tag }} "release_assets/${ZIP_ASSET}" "release_assets/${ZIP_ASSET}.sha256" --clobber --repo ${{ github.repository }}
+          gh release upload ${{ needs.create-release.outputs.release_tag }} $ZipPath $ChecksumPath --clobber --repo ${{ github.repository }}
