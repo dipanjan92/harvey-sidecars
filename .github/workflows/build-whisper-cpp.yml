@@ -200,8 +200,8 @@ jobs:
           mkdir build && cd build
           cmake .. -DCMAKE_BUILD_TYPE=Release \
                    -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/SDL2-install" \
-                   -DSDL_STATIC=ON \
-                   -DSDL_SHARED=OFF \
+                   -DSDL_STATIC=OFF \
+                   -DSDL_SHARED=ON \
                    ${{ matrix.cmake_opts }}
           if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
             make -j$(nproc)
@@ -281,6 +281,7 @@ jobs:
           if [[ "${{ runner.os }}" == "Windows" ]]; then
             cp "whisper.cpp/build/bin/main.exe" release_assets/whisper-cli.exe
             cp "whisper.cpp/build/bin/stream.exe" release_assets/whisper-stream.exe
+            cp "${{ github.workspace }}/SDL2-install/bin/SDL2.dll" release_assets/SDL2.dll
           else
             cp "whisper.cpp/build/bin/main" release_assets/whisper-cli
             cp "whisper.cpp/build/bin/stream" release_assets/whisper-stream
@@ -310,3 +311,21 @@ jobs:
           Set-Content -Path $ChecksumPath -Value "$hash  $ZipAsset"
 
           gh release upload ${{ needs.create-release.outputs.release_tag }} $ZipPath $ChecksumPath --clobber --repo ${{ github.repository }}
+
+      - name: Upload assets (macOS/Linux)
+        if: runner.os != 'Windows'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -ex
+          cd release_assets
+
+          # Create zip archive
+          ZIP_ASSET="whisper-sidecars-${{ matrix.folder }}.zip"
+          zip "${ZIP_ASSET}" *
+
+          # Create checksum
+          shasum -a 256 "${ZIP_ASSET}" > "${ZIP_ASSET}.sha256"
+
+          # Upload assets
+          gh release upload ${{ needs.create-release.outputs.release_tag }} "${ZIP_ASSET}" "${ZIP_ASSET}.sha256" --clobber --repo ${{ github.repository }}
