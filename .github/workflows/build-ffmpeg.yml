@@ -90,9 +90,6 @@ jobs:
               --enable-zlib
               --enable-iconv
               --disable-libmp3lame
-              --nm=nm
-              --ar=ar
-              --dlltool=dlltool
 
           - os: windows-latest
             folder: windows-arm64
@@ -123,8 +120,6 @@ jobs:
               --disable-libmp3lame
               --extra-cflags="-fuse-ld=lld"
               --extra-cxxflags="-fuse-ld=lld"
-              --nm=llvm-nm
-              --dlltool=dlltool
 
           - os: ubuntu-latest
             folder: linux-x86_64
@@ -295,7 +290,7 @@ jobs:
           )
 
           echo "Running configure with matrix opts: ${{ matrix.configure_opts }}"
-          if ! ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }}; then
+          if ! DLLTOOL=dlltool ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }}; then
             echo "Configure failed. Dumping config.log"
             cat ffbuild/config.log
             exit 1
