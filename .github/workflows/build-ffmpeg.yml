@@ -79,6 +79,7 @@ jobs:
               mingw-w64-x86_64-pkg-config
               mingw-w64-x86_64-zlib
               mingw-w64-x86_64-libiconv
+              zip
             configure_opts: >-
               --target-os=win64
               --disable-asm
@@ -101,6 +102,7 @@ jobs:
               mingw-w64-clang-aarch64-pkg-config
               mingw-w64-clang-aarch64-zlib
               mingw-w64-clang-aarch64-libiconv
+              zip
             configure_opts: >-
               --target-os=win64
               --arch=aarch64
