@@ -292,7 +292,8 @@ jobs:
           )
 
           echo "Running configure with matrix opts: ${{ matrix.configure_opts }}"
-          if ! env DLLTOOL=dlltool ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }}; then
+          export DLLTOOL=dlltool
+          if ! ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }}; then
             echo "Configure failed. Dumping config.log"
             cat ffbuild/config.log
             exit 1
