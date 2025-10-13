@@ -92,6 +92,7 @@ jobs:
               --disable-libmp3lame
               --cross-prefix=x86_64-w64-mingw32-
               --arch=x86_64
+              --cc=x86_64-w64-mingw32-gcc
 
           - os: windows-latest
             folder: windows-arm64
