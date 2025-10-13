@@ -79,7 +79,6 @@ jobs:
               mingw-w64-x86_64-pkg-config
               mingw-w64-x86_64-zlib
               mingw-w64-x86_64-libiconv
-              zip
             configure_opts: >-
               --target-os=win64
               --disable-asm
@@ -102,7 +101,6 @@ jobs:
               mingw-w64-clang-aarch64-pkg-config
               mingw-w64-clang-aarch64-zlib
               mingw-w64-clang-aarch64-libiconv
-              zip
             configure_opts: >-
               --target-os=win64
               --arch=aarch64
@@ -380,7 +378,27 @@ jobs:
               }
             }
 
-      - name: Upload assets
+      - name: Upload assets (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $ReleaseDir = "${{ github.workspace }}/release_assets/${{ matrix.folder }}"
+          $ZipAsset = "ffmpeg-${{ matrix.folder }}.zip"
+          $ZipPath = Join-Path -Path $ReleaseDir -ChildPath $ZipAsset
+
+          Compress-Archive -Path "$ReleaseDir/*" -DestinationPath $ZipPath -Force
+
+          $ChecksumPath = "$($ZipPath).sha256"
+          $hash = (Get-FileHash $ZipPath -Algorithm SHA256).Hash.ToLower()
+          Set-Content -Path $ChecksumPath -Value "$hash  $ZipAsset"
+
+          gh release upload ${{ env.RELEASE_TAG }} $ZipPath $ChecksumPath --clobber
+
+      - name: Upload assets (macOS/Linux)
+        if: runner.os != 'Windows'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
