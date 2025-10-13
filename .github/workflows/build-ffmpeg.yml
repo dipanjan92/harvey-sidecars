@@ -91,6 +91,7 @@ jobs:
               --enable-iconv
               --disable-libmp3lame
               --cross-prefix=x86_64-w64-mingw32-
+              --arch=x86_64
 
           - os: windows-latest
             folder: windows-arm64
@@ -274,7 +275,7 @@ jobs:
 
       - name: Configure & build FFmpeg (Windows)
         if: matrix.type == 'build' && runner.os == 'Windows'
-        shell: bash
+        shell: msys2 {0}
         run: |
           echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
           CPU_COUNT=$(nproc)
@@ -291,7 +292,7 @@ jobs:
           )
 
           echo "Running configure with matrix opts: ${{ matrix.configure_opts }}"
-          if ! DLLTOOL=dlltool ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }}; then
+          if ! env DLLTOOL=dlltool ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }}; then
             echo "Configure failed. Dumping config.log"
             cat ffbuild/config.log
             exit 1
