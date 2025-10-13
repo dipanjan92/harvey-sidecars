@@ -137,8 +137,6 @@ jobs:
               --enable-zlib
               --enable-iconv
               --disable-libmp3lame
-              --pkg-config-flags="--static"
-              --extra-ldflags="-static"
 
           - os: ubuntu-latest
             folder: linux-arm64
@@ -175,8 +173,6 @@ jobs:
               --enable-zlib
               --enable-iconv
               --disable-libmp3lame
-              --pkg-config-flags="--static"
-              --extra-ldflags="-static"
 
     defaults:
       run:
@@ -264,9 +260,8 @@ jobs:
           
           BASE_CONFIGURE_FLAGS=(
             --prefix="${INSTALL_PREFIX}"
-            --disable-shared
-            --enable-static
-            --pkg-config-flags="--static"
+            --enable-shared
+            --disable-static
           )
           
           echo "Running configure with matrix opts: ${{ matrix.configure_opts }}"
@@ -319,6 +314,8 @@ jobs:
             FINAL_EXE_NAME="ffmpeg.exe"
             strip "${INSTALL_DIR}/bin/${SRC_EXE_NAME}"
             mv "${INSTALL_DIR}/bin/${SRC_EXE_NAME}" "${RELEASE_DIR}/${FINAL_EXE_NAME}"
+            echo "Copying dll files..."
+            cp -L ${INSTALL_DIR}/bin/*.dll "${RELEASE_DIR}/"
           elif [[ "${{ runner.os }}" == "macOS" ]]; then
             SRC_EXE_NAME="ffmpeg"
             FINAL_EXE_NAME="ffmpeg"
@@ -337,6 +334,8 @@ jobs:
             fi
             mv "${INSTALL_DIR}/bin/${SRC_EXE_NAME}" "${RELEASE_DIR}/${FINAL_EXE_NAME}"
             chmod +x "${RELEASE_DIR}/${FINAL_EXE_NAME}"
+            echo "Copying so files..."
+            cp -L ${INSTALL_DIR}/lib/*.so* "${RELEASE_DIR}/"
           fi
 
           echo "Contents of ${RELEASE_DIR} after asset preparation:"
