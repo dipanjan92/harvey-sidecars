@@ -273,7 +273,7 @@ jobs:
 
       - name: Configure & build FFmpeg (Windows)
         if: matrix.type == 'build' && runner.os == 'Windows'
-        shell: msys2 {0}
+        shell: bash
         run: |
           echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
           CPU_COUNT=$(nproc)
