@@ -90,6 +90,7 @@ jobs:
               --enable-zlib
               --enable-iconv
               --disable-libmp3lame
+              --cross-prefix=x86_64-w64-mingw32-
 
           - os: windows-latest
             folder: windows-arm64
@@ -193,7 +194,7 @@ jobs:
         if: runner.os == 'Windows' && matrix.type == 'build'
         uses: msys2/setup-msys2@v2
         with:
-          msystem: ${{ matrix.folder == 'windows-arm64' && 'CLANG64' || 'MINGW64' }}
+          msystem: ${{ matrix.folder == 'windows-arm64' && 'CLANGARM64' || 'MINGW64' }}
           update: true
           install: ${{ matrix.install_deps }}
 
