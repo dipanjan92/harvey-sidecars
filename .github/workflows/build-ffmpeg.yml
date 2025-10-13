@@ -47,7 +47,6 @@ jobs:
               --enable-iconv
               --enable-videotoolbox
               --disable-libmp3lame
-              --pkg-config-flags="--static"
               --extra-ldflags="-liconv"
 
           - os: macos-13 # For x86_64
@@ -67,7 +66,6 @@ jobs:
               --enable-iconv
               --enable-videotoolbox
               --disable-libmp3lame
-              --pkg-config-flags="--static"
               --extra-ldflags="-liconv"
 
           - os: windows-latest
@@ -239,9 +237,8 @@ jobs:
           
           BASE_CONFIGURE_FLAGS=(
             --prefix="${INSTALL_PREFIX}"
-            --disable-shared
-            --enable-static
-            --pkg-config-flags="--static"
+            --enable-shared
+            --disable-static
           )
           
           echo "Running configure with matrix opts: ${{ matrix.configure_opts }}"
@@ -309,44 +306,41 @@ jobs:
           make install
           cd ..
 
-      - name: Trim Build and Rename
+      - name: Prepare assets for release
         if: matrix.type == 'build'
         run: |
-          echo "Trimming build for ${{ matrix.folder }} on ${{ matrix.os }}"
+          echo "Preparing assets for ${{ matrix.folder }} on ${{ matrix.os }}"
           INSTALL_DIR="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
+          RELEASE_DIR="${{ github.workspace }}/release_assets/${{ matrix.folder }}"
+          mkdir -p "${RELEASE_DIR}"
           
           if [[ "${{ runner.os }}" == "Windows" ]]; then
             SRC_EXE_NAME="ffmpeg.exe"
-            FINAL_EXE_NAME="ffmpeg-${{ matrix.folder }}.exe"
-          else
+            FINAL_EXE_NAME="ffmpeg.exe"
+            strip "${INSTALL_DIR}/bin/${SRC_EXE_NAME}"
+            mv "${INSTALL_DIR}/bin/${SRC_EXE_NAME}" "${RELEASE_DIR}/${FINAL_EXE_NAME}"
+          elif [[ "${{ runner.os }}" == "macOS" ]]; then
             SRC_EXE_NAME="ffmpeg"
-            FINAL_EXE_NAME="ffmpeg-${{ matrix.folder }}"
-          fi
-
-          echo "Looking for ffmpeg executable in ${INSTALL_DIR}/bin/"
-          ls -l "${INSTALL_DIR}/bin/"
-
-          if [[ -f "${INSTALL_DIR}/bin/${SRC_EXE_NAME}" ]]; then
+            FINAL_EXE_NAME="ffmpeg"
+            strip "${INSTALL_DIR}/bin/${SRC_EXE_NAME}"
+            mv "${INSTALL_DIR}/bin/${SRC_EXE_NAME}" "${RELEASE_DIR}/${FINAL_EXE_NAME}"
+            chmod +x "${RELEASE_DIR}/${FINAL_EXE_NAME}"
+            echo "Copying dylib files..."
+            cp -L ${INSTALL_DIR}/lib/*.dylib "${RELEASE_DIR}/"
+          else # Linux
+            SRC_EXE_NAME="ffmpeg"
+            FINAL_EXE_NAME="ffmpeg"
             if [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
               aarch64-linux-gnu-strip "${INSTALL_DIR}/bin/${SRC_EXE_NAME}"
             else
               strip "${INSTALL_DIR}/bin/${SRC_EXE_NAME}"
             fi
-            mv "${INSTALL_DIR}/bin/${SRC_EXE_NAME}" "${INSTALL_DIR}/${FINAL_EXE_NAME}"
-            if [[ "${{ runner.os }}" != "Windows" ]]; then
-              chmod +x "${INSTALL_DIR}/${FINAL_EXE_NAME}"
-            fi
-            echo "Moved, stripped, and renamed binary to ${FINAL_EXE_NAME} in ${INSTALL_DIR}/"
-          else
-            echo "Error: ${SRC_EXE_NAME} not found in ${INSTALL_DIR}/bin/"
-            find "${INSTALL_DIR}" -name "${SRC_EXE_NAME}" -print
-            exit 1
+            mv "${INSTALL_DIR}/bin/${SRC_EXE_NAME}" "${RELEASE_DIR}/${FINAL_EXE_NAME}"
+            chmod +x "${RELEASE_DIR}/${FINAL_EXE_NAME}"
           fi
 
-          echo "Removing bin, include, lib, share directories from ${INSTALL_DIR}"
-          rm -rf "${INSTALL_DIR}/bin" "${INSTALL_DIR}/include" "${INSTALL_DIR}/lib" "${INSTALL_DIR}/share" "${INSTALL_DIR}/doc"
-          echo "Contents of ${INSTALL_DIR} after trim:"
-          ls -R "${INSTALL_DIR}"
+          echo "Contents of ${RELEASE_DIR} after asset preparation:"
+          ls -R "${RELEASE_DIR}"
 
       - name: Ensure GitHub release
         id: ensure_release
@@ -388,22 +382,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          cd ffmpeg/${{ matrix.folder }}
-          
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
-            ASSET_NAME="ffmpeg-${{ matrix.folder }}.exe"
-          else
-            ASSET_NAME="ffmpeg-${{ matrix.folder }}"
-          fi
+          RELEASE_DIR="${{ github.workspace }}/release_assets/${{ matrix.folder }}"
+          cd "${RELEASE_DIR}"
+
+          ZIP_ASSET="ffmpeg-${{ matrix.folder }}.zip"
+          zip -r "${ZIP_ASSET}" .
 
           # Create checksum file
-          echo "Creating checksum for ${ASSET_NAME}"
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
-            sha256sum $ASSET_NAME > ${ASSET_NAME}.sha256
-          else
-            shasum -a 256 $ASSET_NAME > ${ASSET_NAME}.sha256
-          fi
+          echo "Creating checksum for ${ZIP_ASSET}"
+          shasum -a 256 "${ZIP_ASSET}" > "${ZIP_ASSET}.sha256"
 
-          echo "Uploading ${ASSET_NAME} and ${ASSET_NAME}.sha256 to release ${{ env.RELEASE_TAG }}"
-          gh release upload ${{ env.RELEASE_TAG }} ${ASSET_NAME} --clobber
-          gh release upload ${{ env.RELEASE_TAG }} ${ASSET_NAME}.sha256 --clobber
+          echo "Uploading ${ZIP_ASSET} and ${ZIP_ASSET}.sha256 to release ${{ env.RELEASE_TAG }}"
+          gh release upload ${{ env.RELEASE_TAG }} "${ZIP_ASSET}" "${ZIP_ASSET}.sha256" --clobber
