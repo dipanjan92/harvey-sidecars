@@ -285,9 +285,8 @@ jobs:
 
           BASE_CONFIGURE_FLAGS=(
             --prefix="${INSTALL_PREFIX}"
-            --disable-shared
-            --enable-static
-            --pkg-config-flags="--static"
+            --enable-shared
+            --disable-static
           )
 
           echo "Running configure with matrix opts: ${{ matrix.configure_opts }}"
