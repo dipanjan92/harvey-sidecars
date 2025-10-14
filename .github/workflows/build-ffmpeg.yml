@@ -135,6 +135,12 @@ jobs:
 
       - name: Configure & build FFmpeg
         run: |
+          if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
+            export CC=aarch64-w64-mingw32-gcc
+            export CXX=aarch64-w64-mingw32-g++
+            export PKG_CONFIG=aarch64-w64-mingw32-pkg-config
+          fi
+
           echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
           CPU_COUNT=$(nproc || sysctl -n hw.logicalcpu)
           echo "Using $CPU_COUNT cores for make"
