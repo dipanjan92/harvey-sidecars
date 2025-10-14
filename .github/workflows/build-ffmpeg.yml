@@ -85,8 +85,8 @@ jobs:
               --target-os=mingw32
               --arch=x86_64
               --cross-prefix=x86_64-w64-mingw32-
-              --ar=x86_64-w64-mingw32-ar
-              --nm=x86_64-w64-mingw32-nm
+          --ar=ar
+          --nm=nm
               --disable-asm
               --disable-gpl
               --disable-nonfree
@@ -102,23 +102,15 @@ jobs:
             type: build
             install_deps: >-
               make
-              mingw-w64-x86_64-clang
-              mingw-w64-x86_64-clang-aarch64-clang
-              mingw-w64-x86_64-clang-aarch64-lld
-              mingw-w64-x86_64-clang-aarch64-pkg-config
-              mingw-w64-x86_64-clang-aarch64-zlib
-              mingw-w64-x86_64-clang-aarch64-libiconv
+          mingw-w64-x86_64-aarch64-gcc
+          mingw-w64-x86_64-aarch64-pkg-config
+          mingw-w64-x86_64-aarch64-zlib
+          mingw-w64-x86_64-aarch64-libiconv
             configure_opts: >-
-              --target-os=win64
+          --target-os=mingw32
               --arch=aarch64
               --enable-cross-compile
-              # Use the full cross-prefix and tool names
               --cross-prefix=aarch64-w64-mingw32-
-              --cc=aarch64-w64-mingw32-clang
-              --cxx=aarch64-w64-mingw32-clang++
-              --ar=aarch64-w64-mingw32-ar
-              --ranlib=aarch64-w64-mingw32-ranlib
-              --nm=aarch64-w64-mingw32-nm
               --disable-asm
               --disable-gpl
               --disable-nonfree
