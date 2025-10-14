@@ -56,7 +56,7 @@ jobs:
             container: dockcross/windows-arm64
             arch: aarch64
             target_os: mingw32
-            extra_opts: ""
+            extra_opts: "--disable-asm"
           - folder: linux-x86_64
             os: ubuntu-latest
             arch: x86_64
