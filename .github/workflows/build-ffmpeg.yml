@@ -121,7 +121,7 @@ jobs:
             sudo apt-get install -y yasm nasm pkg-config gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu zlib1g-dev:arm64
           elif [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
             apt-get update -y
-            apt-get install -y yasm nasm pkg-config
+            apt-get install -y yasm nasm pkg-config zlib1g-dev
           fi
 
       - name: Install build prerequisites (macOS)
