@@ -86,6 +86,7 @@ jobs:
               --arch=x86_64
               --cross-prefix=x86_64-w64-mingw32-
               --ar=x86_64-w64-mingw32-ar
+              --nm=x86_64-w64-mingw32-nm
               --disable-asm
               --disable-gpl
               --disable-nonfree
@@ -101,19 +102,22 @@ jobs:
             type: build
             install_deps: >-
               make
-              mingw-w64-clang-aarch64-toolchain
-              mingw-w64-clang-x86_64-lld
-              mingw-w64-clang-aarch64-pkg-config
-              mingw-w64-clang-aarch64-zlib
-              mingw-w64-clang-aarch64-libiconv
+              # Install the x86_64 -> aarch64 cross-compiler toolchain
+              mingw-w64-x86_64-clang-aarch64-toolchain
+              mingw-w64-x86_64-clang-aarch64-pkg-config
+              mingw-w64-x86_64-clang-aarch64-zlib
+              mingw-w64-x86_64-clang-aarch64-libiconv
             configure_opts: >-
               --target-os=win64
               --arch=aarch64
-              --cc=clang
-              --cxx=clang++
-              --ar=llvm-ar
-              --ranlib=llvm-ranlib
               --enable-cross-compile
+              # Use the full cross-prefix and tool names
+              --cross-prefix=aarch64-w64-mingw32-
+              --cc=aarch64-w64-mingw32-clang
+              --cxx=aarch64-w64-mingw32-clang++
+              --ar=aarch64-w64-mingw32-ar
+              --ranlib=aarch64-w64-mingw32-ranlib
+              --nm=aarch64-w64-mingw32-nm
               --disable-asm
               --disable-gpl
               --disable-nonfree
@@ -123,8 +127,6 @@ jobs:
               --enable-zlib
               --enable-iconv
               --disable-libmp3lame
-              --extra-cflags="-fuse-ld=lld"
-              --extra-cxxflags="-fuse-ld=lld"
 
           - os: ubuntu-latest
             folder: linux-x86_64
@@ -198,7 +200,7 @@ jobs:
         if: runner.os == 'Windows' && matrix.type == 'build'
         uses: msys2/setup-msys2@v2
         with:
-          msystem: ${{ matrix.folder == 'windows-arm64' && 'CLANGARM64' || 'MINGW64' }}
+          msystem: MINGW64
           update: true
           install: ${{ matrix.install_deps }}
 
@@ -295,15 +297,14 @@ jobs:
           )
 
           echo "Running configure with matrix opts: ${{ matrix.configure_opts }}"
-          if ! env DLLTOOL=dlltool ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }}; then
+          if ! env DLLTOOL=x86_64-w64-mingw32-dlltool ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }}; then
             echo "Configure failed. Dumping config.log"
             cat ffbuild/config.log
             exit 1
           fi
-
           
-          make -j${CPU_COUNT} DLLTOOL=dlltool
-          make install DLLTOOL=dlltool
+          make -j${CPU_COUNT} DLLTOOL=x86_64-w64-mingw32-dlltool
+          make install DLLTOOL=x86_64-w64-mingw32-dlltool
           cd ..
 
       - name: Prepare assets for release
