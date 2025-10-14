@@ -15,7 +15,6 @@ jobs:
       - name: Install vcpkg and dependencies
         uses: lukka/run-vcpkg@v11
         with:
-          vcpkgGitCommitId: 'e1339a2da291d42a134d24f339a6423f23f856d3'
           vcpkgJsonGlob: '**/vcpkg.json'
 
       - name: Download and extract FFmpeg
