@@ -8,14 +8,57 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - name: Build FFmpeg
-        uses: rt-ffmpeg/build-ffmpeg@v1
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@v2
         with:
-          ffmpeg-version: '6.0'
-          configure-flags: '--enable-shared --disable-static --disable-gpl --disable-nonfree --disable-ffplay --disable-ffprobe --disable-doc --disable-autodetect --enable-zlib --enable-iconv --enable-d3d11va --disable-libmp3lame'
+          msystem: MINGW64
+          update: true
+          install: >-
+            git
+            make
+            nasm
+            yasm
+            pacman
+            curl
+
+      - name: Build FFmpeg
+        shell: msys2 {0}
+        run: |
+          # Source the MSVC environment
+          source "/c/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Auxiliary/Build/vcvars64.bat"
+
+          # Install dependencies
+          pacman -S --noconfirm zlib libiconv
+
+          # Download and extract FFmpeg
+          curl -L https://ffmpeg.org/releases/ffmpeg-6.0.tar.gz -o ffmpeg-6.0.tar.gz
+          tar -xzf ffmpeg-6.0.tar.gz
+          cd ffmpeg-6.0
+
+          # Configure, Build, and Install
+          ./configure --toolchain=msvc --arch=x86_64 --enable-shared --disable-static \
+            --disable-gpl \
+            --disable-nonfree \
+            --disable-ffplay \
+            --disable-ffprobe \
+            --disable-doc \
+            --disable-autodetect \
+            --enable-zlib \
+            --enable-iconv \
+            --enable-d3d11va \
+            --disable-libmp3lame
+          make -j$(nproc)
+          make install
 
       - name: Upload FFmpeg build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ffmpeg-x86_64-windows
-          path: artifacts
+          path: |
+            /usr/local/bin/*.dll
+            /usr/local/bin/*.exe
+            /usr/local/lib/*.lib
+            /usr/local/include/**/*.h
