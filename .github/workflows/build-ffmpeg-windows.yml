@@ -24,11 +24,19 @@ jobs:
             pacman
             curl
 
+      - name: Set up MSVC environment
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          set > msvc_env.txt
+
       - name: Build FFmpeg
         shell: msys2 {0}
         run: |
-          # Source the MSVC environment
-          source "/c/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Auxiliary/Build/vcvars64.bat"
+          # Load MSVC environment
+          while IFS='=' read -r -d '' n v;
+            export "$n=$v"
+          done < <(xargs -0 printf '%s=%s\0' < msvc_env.txt)
 
           # Install dependencies
           pacman -S --noconfirm zlib libiconv
