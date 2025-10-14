@@ -82,6 +82,8 @@ jobs:
               diffutils
             configure_opts: >-
               --target-os=win64
+              --arch=x86_64
+              --cross-prefix=x86_64-w64-mingw32-
               --disable-asm
               --disable-gpl
               --disable-nonfree
