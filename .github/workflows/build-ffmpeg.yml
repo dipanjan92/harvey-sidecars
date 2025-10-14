@@ -85,6 +85,7 @@ jobs:
               --target-os=win64
               --arch=x86_64
               --cross-prefix=x86_64-w64-mingw32-
+              --ar=x86_64-w64-mingw32-ar
               --disable-asm
               --disable-gpl
               --disable-nonfree
@@ -100,7 +101,7 @@ jobs:
             type: build
             install_deps: >-
               make
-              mingw-w64-clang-x86_64-toolchain
+              mingw-w64-clang-aarch64-toolchain
               mingw-w64-clang-x86_64-lld
               mingw-w64-clang-aarch64-pkg-config
               mingw-w64-clang-aarch64-zlib
