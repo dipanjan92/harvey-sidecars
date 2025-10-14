@@ -18,7 +18,7 @@ jobs:
 
       - name: Install MSYS2
         run: |
-          winget install -e --id MSYS2.MSYS2
+          winget install -e --id MSYS2.MSYS2 --accept-source-agreements --accept-package-agreements
           echo "C:\msys64\usr\bin" >> $env:GITHUB_PATH
         shell: pwsh
 
