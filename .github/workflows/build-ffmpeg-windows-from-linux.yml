@@ -2,6 +2,10 @@ name: Build FFmpeg Windows from Linux
 
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'The release tag to use for the FFmpeg build (e.g., n5.1.4)'
+        required: true
 
 jobs:
   build-ffmpeg:
@@ -9,8 +13,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       MATRIX_FOLDER: windows-x86_64
-      RELEASE_TAG: "n5.1.4"
-      FFMPEG_TAG: "n5.1.4"
+      RELEASE_TAG: ${{ github.event.inputs.release_tag }}
 
     defaults:
       run:
@@ -23,6 +26,21 @@ jobs:
           persist-credentials: true
           fetch-depth: 0
 
+      - name: Handle Git Tag and Release
+        run: |
+          # Delete remote tag
+          git push --delete origin ${{ env.RELEASE_TAG }} || echo "Tag ${{ env.RELEASE_TAG }} not found on remote."
+          # Delete local tag
+          git tag -d ${{ env.RELEASE_TAG }} || echo "Tag ${{ env.RELEASE_TAG }} not found locally."
+          # Delete release
+          gh release delete ${{ env.RELEASE_TAG }} -y || echo "Release ${{ env.RELEASE_TAG }} not found."
+          # Create new tag
+          git tag ${{ env.RELEASE_TAG }}
+          # Push new tag
+          git push origin ${{ env.RELEASE_TAG }}
+          # Create new release
+          gh release create ${{ env.RELEASE_TAG }} --generate-notes
+
       - name: Install build prerequisites
         run: |
           sudo apt-get update -y
@@ -30,9 +48,9 @@ jobs:
 
       - name: Clone FFmpeg source
         run: |
-          echo "Cloning FFmpeg source branch/tag: $FFMPEG_TAG for $MATRIX_FOLDER"
+          echo "Cloning FFmpeg source branch/tag: ${{ env.RELEASE_TAG }} for $MATRIX_FOLDER"
           rm -rf ffmpeg-src # Clean before clone
-          git clone --depth 1 --branch "$FFMPEG_TAG" https://git.ffmpeg.org/ffmpeg.git ffmpeg-src
+          git clone --depth 1 --branch "${{ env.RELEASE_TAG }}" https://git.ffmpeg.org/ffmpeg.git ffmpeg-src
 
       - name: Configure & build FFmpeg
         run: |
@@ -107,5 +125,5 @@ jobs:
           echo "Creating checksum for ${ZIP_ASSET}"
           shasum -a 256 "${ZIP_ASSET}" > "${ZIP_ASSET}.sha256"
 
-          echo "Uploading ${ZIP_ASSET} and ${ZIP_ASSET}.sha256 to release $RELEASE_TAG"
-          gh release upload $RELEASE_TAG "${ZIP_ASSET}" "${ZIP_ASSET}.sha256" --clobber
+          echo "Uploading ${ZIP_ASSET} and ${ZIP_ASSET}.sha256 to release ${{ env.RELEASE_TAG }}"
+          gh release upload ${{ env.RELEASE_TAG }} "${ZIP_ASSET}" "${ZIP_ASSET}.sha256" --clobber
