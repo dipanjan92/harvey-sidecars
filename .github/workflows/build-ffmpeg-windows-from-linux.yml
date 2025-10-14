@@ -17,6 +17,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       MATRIX_FOLDER: windows-x86_64
       RELEASE_TAG: ${{ github.event.inputs.release_tag }}
+      FFMPEG_TAG: "n5.1.4"
 
     defaults:
       run:
@@ -51,9 +52,9 @@ jobs:
 
       - name: Clone FFmpeg source
         run: |
-          echo "Cloning FFmpeg source branch/tag: ${{ env.RELEASE_TAG }} for $MATRIX_FOLDER"
+          echo "Cloning FFmpeg source branch/tag: ${{ env.FFMPEG_TAG }} for $MATRIX_FOLDER"
           rm -rf ffmpeg-src # Clean before clone
-          git clone --depth 1 --branch "${{ env.RELEASE_TAG }}" https://git.ffmpeg.org/ffmpeg.git ffmpeg-src
+          git clone --depth 1 --branch "${{ env.FFMPEG_TAG }}" https://git.ffmpeg.org/ffmpeg.git ffmpeg-src
 
       - name: Configure & build FFmpeg
         run: |
