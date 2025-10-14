@@ -1,6 +1,6 @@
 name: Build FFmpeg Windows
 
-on: 
+on:
   workflow_dispatch:
 
 jobs:
@@ -25,6 +25,9 @@ jobs:
             yasm
             pacman
             
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v1.1
+
       - name: Install vcpkg and dependencies
         uses: lukka/run-vcpkg@v11
         with:
@@ -35,9 +38,6 @@ jobs:
         run: |
           curl -L https://ffmpeg.org/releases/ffmpeg-6.0.tar.gz -o ffmpeg-6.0.tar.gz
           tar -xzf ffmpeg-6.0.tar.gz
-
-      - name: Set up MSVC developer environment
-        uses: ilammy/msvc-dev-cmd@v1
 
       - name: Configure FFmpeg
         shell: msys2 {0}
