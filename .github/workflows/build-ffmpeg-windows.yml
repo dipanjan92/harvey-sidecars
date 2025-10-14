@@ -8,69 +8,14 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Build FFmpeg
+        uses: comsa/build-ffmpeg@v1
         with:
-          submodules: true
-
-      - name: Setup MSYS2
-        uses: msys2/setup-msys2@v2
-        with:
-          msystem: MINGW64
-          update: true
-          install: >-
-            git
-            make
-            nasm
-            yasm
-            pacman
-
-      - name: Setup MSVC
-        uses: ilammy/msvc-dev-cmd@v1
-
-      - name: Install vcpkg and dependencies
-        uses: lukka/run-vcpkg@v11
-        with:
-          vcpkgJsonGlob: '**/vcpkg.json'
-
-      - name: Download and extract FFmpeg
-        shell: msys2 {0}
-        run: |
-          curl -L https://ffmpeg.org/releases/ffmpeg-6.0.tar.gz -o ffmpeg-6.0.tar.gz
-          tar -xzf ffmpeg-6.0.tar.gz
-
-      - name: Configure, Build, and Install FFmpeg
-        shell: msys2 {0}
-        env:
-          VCPKG_ROOT: ${{ env.VCPKG_INSTALLATION_ROOT }}
-          CL: "${{ env.CL }}"
-          LINK: "${{ env.LINK }}"
-          LIB: "${{ env.LIB }}"
-          INCLUDE: "${{ env.INCLUDE }}"
-        run: |
-          cd ffmpeg-6.0
-          ./configure --toolchain=msvc --arch=x86_64 --enable-shared --disable-static \
-            --disable-gpl \
-            --disable-nonfree \
-            --disable-ffplay \
-            --disable-ffprobe \
-            --disable-doc \
-            --disable-autodetect \
-            --enable-zlib \
-            --enable-iconv \
-            --enable-d3d11va \
-            --disable-libmp3lame \
-            --extra-cflags="-I$VCPKG_ROOT/x64-windows/include" \
-            --extra-ldflags="-L$VCPKG_ROOT/x64-windows/lib"
-          make -j$(nproc)
-          make install
+          ffmpeg-version: '6.0'
+          configure-flags: '--enable-shared --disable-static --disable-gpl --disable-nonfree --disable-ffplay --disable-ffprobe --disable-doc --disable-autodetect --enable-zlib --enable-iconv --enable-d3d11va --disable-libmp3lame'
 
       - name: Upload FFmpeg build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ffmpeg-x86_64-windows
-          path: |
-            ffmpeg-6.0/bin/*.dll
-            ffmpeg-6.0/bin/*.exe
-            ffmpeg-6.0/lib/*.lib
-            ffmpeg-6.0/include/**/*.h
+          path: artifacts
