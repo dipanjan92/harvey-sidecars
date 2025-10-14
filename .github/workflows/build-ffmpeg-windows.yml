@@ -34,9 +34,11 @@ jobs:
         shell: msys2 {0}
         run: |
           # Load MSVC environment
-          while IFS='=' read -r -d '' n v;
-            export "$n=$v"
-          done < <(xargs -0 printf '%s=%s\0' < msvc_env.txt)
+          while IFS='=' read -r n v; do
+            if [ -n "$n" ]; then
+              export "$n=$v"
+            fi
+          done < msvc_env.txt
 
           # Install dependencies
           pacman -S --noconfirm zlib libiconv
