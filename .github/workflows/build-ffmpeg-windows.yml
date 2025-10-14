@@ -13,20 +13,20 @@ jobs:
         with:
           submodules: true
 
-      - name: Set up MSVC developer environment
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            git
+            make
+            nasm
+            yasm
+            pacman
+
+      - name: Setup MSVC
         uses: ilammy/msvc-dev-cmd@v1
-
-      - name: Install MSYS2
-        run: |
-          winget install -e --id MSYS2.MSYS2 --accept-source-agreements --accept-package-agreements
-          echo "C:\msys64\usr\bin" >> $env:GITHUB_PATH
-        shell: pwsh
-
-      - name: Install MSYS2 packages
-        run: |
-          pacman -Syu --noconfirm
-          pacman -S --noconfirm make nasm yasm diffutils
-        shell: msys2 {0}
 
       - name: Install vcpkg and dependencies
         uses: lukka/run-vcpkg@v11
