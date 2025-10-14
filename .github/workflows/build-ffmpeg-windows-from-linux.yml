@@ -26,7 +26,7 @@ jobs:
       - name: Install build prerequisites
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y yasm nasm pkg-config zlib1g-dev mingw-w64 libiconv-hook-dev
+          sudo apt-get install -y yasm nasm pkg-config libz-mingw-w64-dev mingw-w64 libiconv-hook-dev
 
       - name: Clone FFmpeg source
         run: |
