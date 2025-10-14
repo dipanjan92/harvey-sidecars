@@ -24,33 +24,40 @@ jobs:
             pacman
             curl
 
+      - name: Set up MSVC environment
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          echo "CL=%CL%" >> %GITHUB_ENV%
+          echo "LINK=%LINK%" >> %GITHUB_ENV%
+          echo "LIB=%LIB%" >> %GITHUB_ENV%
+          echo "INCLUDE=%INCLUDE%" >> %GITHUB_ENV%
+
       - name: Build FFmpeg
-        uses: warrenbuckley/Setup-MSVC-Dev-Cmd@v1
-        with:
-          arch: x64
-          run: |
-            # Install dependencies
-            pacman -S --noconfirm zlib libiconv
+        shell: msys2 {0}
+        run: |
+          # Install dependencies
+          pacman -S --noconfirm zlib libiconv
 
-            # Download and extract FFmpeg
-            curl -L https://ffmpeg.org/releases/ffmpeg-6.0.tar.gz -o ffmpeg-6.0.tar.gz
-            tar -xzf ffmpeg-6.0.tar.gz
-            cd ffmpeg-6.0
+          # Download and extract FFmpeg
+          curl -L https://ffmpeg.org/releases/ffmpeg-6.0.tar.gz -o ffmpeg-6.0.tar.gz
+          tar -xzf ffmpeg-6.0.tar.gz
+          cd ffmpeg-6.0
 
-            # Configure, Build, and Install
-            ./configure --toolchain=msvc --arch=x86_64 --enable-shared --disable-static \
-              --disable-gpl \
-              --disable-nonfree \
-              --disable-ffplay \
-              --disable-ffprobe \
-              --disable-doc \
-              --disable-autodetect \
-              --enable-zlib \
-              --enable-iconv \
-              --enable-d3d11va \
-              --disable-libmp3lame
-            make -j$(nproc)
-            make install
+          # Configure, Build, and Install
+          ./configure --toolchain=msvc --arch=x86_64 --enable-shared --disable-static \
+            --disable-gpl \
+            --disable-nonfree \
+            --disable-ffplay \
+            --disable-ffprobe \
+            --disable-doc \
+            --disable-autodetect \
+            --enable-zlib \
+            --enable-iconv \
+            --enable-d3d11va \
+            --disable-libmp3lame
+          make -j$(nproc)
+          make install
 
       - name: Upload FFmpeg build artifacts
         uses: actions/upload-artifact@v4
