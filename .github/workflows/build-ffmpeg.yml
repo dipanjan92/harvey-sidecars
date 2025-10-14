@@ -73,6 +73,7 @@ jobs:
             type: build
             install_deps: >-
               make
+              mingw-w64-x86_64-binutils
               mingw-w64-x86_64-gcc
               mingw-w64-x86_64-yasm
               mingw-w64-x86_64-nasm
