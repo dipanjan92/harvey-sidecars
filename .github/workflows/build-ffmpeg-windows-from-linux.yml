@@ -61,6 +61,8 @@ jobs:
             --disable-doc
             --enable-zlib
             --disable-libmp3lame
+            --extra-cflags="-I/usr/x86_64-w64-mingw32/include"
+            --extra-ldflags="-L/usr/x86_64-w64-mingw32/lib"
           )
 
           echo "Running configure with matrix opts: ${CONFIGURE_OPTS[@]}"
