@@ -6,46 +6,105 @@ on:
 jobs:
   build-ffmpeg:
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      MATRIX_FOLDER: windows-x86_64
+      RELEASE_TAG: "n5.1.4"
+      FFMPEG_TAG: "n5.1.4"
+
+    defaults:
+      run:
+        shell: bash
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Install MinGW-w64 toolchain
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y mingw-w64
-
-      - name: Download and extract FFmpeg
-        run: |
-          curl -L https://ffmpeg.org/releases/ffmpeg-6.0.tar.gz -o ffmpeg-6.0.tar.gz
-          tar -xzf ffmpeg-6.0.tar.gz
-          cd ffmpeg-6.0
-
-      - name: Configure, Build, and Install
-        run: |
-          cd ffmpeg-6.0
-          ./configure --target-os=mingw32 --cross-prefix=x86_64-w64-mingw32- --arch=x86_64 --enable-shared --disable-static \
-            --disable-gpl \
-            --disable-nonfree \
-            --disable-ffplay \
-            --disable-ffprobe \
-            --disable-doc \
-            --disable-autodetect \
-            --enable-zlib \
-            --enable-iconv \
-            --enable-d3d11va \
-            --disable-libmp3lame
-          make -j$(nproc)
-          make install
-
-      - name: Upload FFmpeg build artifacts
-        uses: actions/upload-artifact@v4
         with:
-          name: ffmpeg-x86_64-windows
-          path: |
-            /usr/local/x86_64-w64-mingw32/bin/*.dll
-            /usr/local/x86_64-w64-mingw32/bin/*.exe
-            /usr/local/x86_64-w64-mingw32/lib/*.lib
-            /usr/local/x86_64-w64-mingw32/include/**/*.h
+          persist-credentials: true
+          fetch-depth: 0
 
+      - name: Install build prerequisites
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y yasm nasm pkg-config zlib1g-dev mingw-w64
+
+      - name: Clone FFmpeg source
+        run: |
+          echo "Cloning FFmpeg source branch/tag: $FFMPEG_TAG for $MATRIX_FOLDER"
+          rm -rf ffmpeg-src # Clean before clone
+          git clone --depth 1 --branch "$FFMPEG_TAG" https://git.ffmpeg.org/ffmpeg.git ffmpeg-src
+
+      - name: Configure & build FFmpeg
+        run: |
+          echo "Configuring and building FFmpeg for $MATRIX_FOLDER on $RUNNER_OS"
+          CPU_COUNT=$(nproc)
+          echo "Using $CPU_COUNT cores for make"
+
+          INSTALL_PREFIX="${{ github.workspace }}/ffmpeg/$MATRIX_FOLDER"
+          mkdir -p "${INSTALL_PREFIX}"
+          cd ffmpeg-src
+
+          BASE_CONFIGURE_FLAGS=(
+            --prefix="${INSTALL_PREFIX}"
+            --enable-shared
+            --disable-static
+          )
+
+          CONFIGURE_OPTS=(
+            --target-os=mingw32
+            --arch=x86_64
+            --cross-prefix=x86_64-w64-mingw32-
+            --disable-gpl
+            --disable-nonfree
+            --disable-ffplay
+            --disable-ffprobe
+            --disable-doc
+            --enable-zlib
+            --enable-iconv
+            --disable-libmp3lame
+          )
+
+          echo "Running configure with matrix opts: ${CONFIGURE_OPTS[@]}"
+          if ! ./configure "${BASE_CONFIGURE_FLAGS[@]}" "${CONFIGURE_OPTS[@]}"; then
+            echo "Configure failed. Dumping config.log"
+            cat ffbuild/config.log
+            exit 1
+          fi
+          
+          make -j${CPU_COUNT}
+          make install
+          cd ..
+
+      - name: Prepare assets for release
+        run: |
+          echo "Preparing assets for $MATRIX_FOLDER on $RUNNER_OS"
+          INSTALL_DIR="${{ github.workspace }}/ffmpeg/$MATRIX_FOLDER"
+          RELEASE_DIR="${{ github.workspace }}/release_assets/$MATRIX_FOLDER"
+          mkdir -p "${RELEASE_DIR}"
+          
+          SRC_EXE_NAME="ffmpeg.exe"
+          FINAL_EXE_NAME="ffmpeg.exe"
+          x86_64-w64-mingw32-strip "${INSTALL_DIR}/bin/${SRC_EXE_NAME}"
+          mv "${INSTALL_DIR}/bin/${SRC_EXE_NAME}" "${RELEASE_DIR}/${FINAL_EXE_NAME}"
+          echo "Copying dll files..."
+          cp -L ${INSTALL_DIR}/bin/*.dll "${RELEASE_DIR}/"
+
+          echo "Contents of ${RELEASE_DIR} after asset preparation:"
+          ls -R "${RELEASE_DIR}"
+
+      - name: Upload assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RELEASE_DIR="${{ github.workspace }}/release_assets/$MATRIX_FOLDER"
+          cd "${RELEASE_DIR}"
+
+          ZIP_ASSET="ffmpeg-$MATRIX_FOLDER.zip"
+          zip -r "${ZIP_ASSET}" .
+
+          # Create checksum file
+          echo "Creating checksum for ${ZIP_ASSET}"
+          shasum -a 256 "${ZIP_ASSET}" > "${ZIP_ASSET}.sha256"
+
+          echo "Uploading ${ZIP_ASSET} and ${ZIP_ASSET}.sha256 to release $RELEASE_TAG"
+          gh release upload $RELEASE_TAG "${ZIP_ASSET}" "${ZIP_ASSET}.sha256" --clobber
