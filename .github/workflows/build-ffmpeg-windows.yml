@@ -13,20 +13,20 @@ jobs:
         with:
           submodules: true
 
-      - name: Setup MSYS2
-        uses: msys2/setup-msys2@v2
-        with:
-          msystem: MINGW64
-          update: true
-          install: >-
-            git
-            make
-            nasm
-            yasm
-            pacman
-            
-      - name: Setup MSBuild
-        uses: microsoft/setup-msbuild@v1.1
+      - name: Set up MSVC developer environment
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install MSYS2
+        run: |
+          winget install -e --id MSYS2.MSYS2
+          echo "C:\msys64\usr\bin" >> $env:GITHUB_PATH
+        shell: pwsh
+
+      - name: Install MSYS2 packages
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm make nasm yasm diffutils
+        shell: msys2 {0}
 
       - name: Install vcpkg and dependencies
         uses: lukka/run-vcpkg@v11
@@ -39,10 +39,14 @@ jobs:
           curl -L https://ffmpeg.org/releases/ffmpeg-6.0.tar.gz -o ffmpeg-6.0.tar.gz
           tar -xzf ffmpeg-6.0.tar.gz
 
-      - name: Configure FFmpeg
+      - name: Configure, Build, and Install FFmpeg
         shell: msys2 {0}
         env:
           VCPKG_ROOT: ${{ env.VCPKG_INSTALLATION_ROOT }}
+          CL: "${{ env.CL }}"
+          LINK: "${{ env.LINK }}"
+          LIB: "${{ env.LIB }}"
+          INCLUDE: "${{ env.INCLUDE }}"
         run: |
           cd ffmpeg-6.0
           ./configure --toolchain=msvc --arch=x86_64 --enable-shared --disable-static \
@@ -58,17 +62,7 @@ jobs:
             --disable-libmp3lame \
             --extra-cflags="-I$VCPKG_ROOT/x64-windows/include" \
             --extra-ldflags="-L$VCPKG_ROOT/x64-windows/lib"
-
-      - name: Build FFmpeg
-        shell: msys2 {0}
-        run: |
-          cd ffmpeg-6.0
           make -j$(nproc)
-
-      - name: Install FFmpeg
-        shell: msys2 {0}
-        run: |
-          cd ffmpeg-6.0
           make install
 
       - name: Upload FFmpeg build artifacts
