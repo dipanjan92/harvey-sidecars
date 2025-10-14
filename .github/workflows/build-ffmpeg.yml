@@ -170,6 +170,14 @@ jobs:
           make install
           cd ..
 
+      - name: Show config.log on failure
+        if: failure()
+        run: |
+          if [ -f "ffmpeg-src/ffbuild/config.log" ]; then
+            echo "--- FFmpeg config.log ---"
+            cat ffmpeg-src/ffbuild/config.log
+          fi
+
       - name: Prepare assets for release
         run: |
           echo "Preparing assets for ${{ matrix.folder }} on ${{ matrix.os }}"
@@ -177,12 +185,16 @@ jobs:
           RELEASE_DIR="${{ github.workspace }}/release_assets/${{ matrix.folder }}"
           mkdir -p "${RELEASE_DIR}"
           
-          if [[ "${{ matrix.os }}" == "ubuntu-latest" && "${{ matrix.arch }}" == "x86_64" ]]; then
-            strip "${INSTALL_DIR}/bin/ffmpeg"
-          elif [[ "${{ matrix.cross_prefix }}" != "" ]]; then
-            ${{ matrix.cross_prefix }}strip "${INSTALL_DIR}/bin/ffmpeg.exe"
+          if [[ "${{ matrix.target_os }}" == "mingw32" ]]; then
+            EXE_NAME="ffmpeg.exe"
           else
-            strip "${INSTALL_DIR}/bin/ffmpeg"
+            EXE_NAME="ffmpeg"
+          fi
+
+          if [[ "${{ matrix.cross_prefix }}" != "" ]]; then
+            ${{ matrix.cross_prefix }}strip "${INSTALL_DIR}/bin/${EXE_NAME}"
+          else
+            strip "${INSTALL_DIR}/bin/${EXE_NAME}"
           fi
           
           cp -r "${INSTALL_DIR}/bin/"* "${RELEASE_DIR}/"
