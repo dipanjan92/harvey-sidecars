@@ -1,34 +1,48 @@
-
 name: Build FFmpeg Windows
 
-on:
+on: 
   workflow_dispatch:
 
 jobs:
   build-ffmpeg:
     runs-on: windows-latest
-    
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           submodules: true
 
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            git
+            make
+            nasm
+            yasm
+            pacman
+            
       - name: Install vcpkg and dependencies
         uses: lukka/run-vcpkg@v11
         with:
           vcpkgJsonGlob: '**/vcpkg.json'
 
       - name: Download and extract FFmpeg
+        shell: msys2 {0}
         run: |
           curl -L https://ffmpeg.org/releases/ffmpeg-6.0.tar.gz -o ffmpeg-6.0.tar.gz
           tar -xzf ffmpeg-6.0.tar.gz
-        shell: bash
 
       - name: Set up MSVC developer environment
         uses: ilammy/msvc-dev-cmd@v1
 
       - name: Configure FFmpeg
+        shell: msys2 {0}
+        env:
+          VCPKG_ROOT: ${{ env.VCPKG_INSTALLATION_ROOT }}
         run: |
           cd ffmpeg-6.0
           ./configure --toolchain=msvc --arch=x86_64 --enable-shared --disable-static \
@@ -42,21 +56,20 @@ jobs:
             --enable-iconv \
             --enable-d3d11va \
             --disable-libmp3lame \
-            --extra-cflags="-I${{ env.VCPKG_INSTALLATION_ROOT }}/x64-windows/include" \
-            --extra-ldflags="-L${{ env.VCPKG_INSTALLATION_ROOT }}/x64-windows/lib"
-        shell: msys2 {0}
+            --extra-cflags="-I$VCPKG_ROOT/x64-windows/include" \
+            --extra-ldflags="-L$VCPKG_ROOT/x64-windows/lib"
 
       - name: Build FFmpeg
+        shell: msys2 {0}
         run: |
           cd ffmpeg-6.0
           make -j$(nproc)
-        shell: msys2 {0}
 
       - name: Install FFmpeg
+        shell: msys2 {0}
         run: |
           cd ffmpeg-6.0
           make install
-        shell: msys2 {0}
 
       - name: Upload FFmpeg build artifacts
         uses: actions/upload-artifact@v4
