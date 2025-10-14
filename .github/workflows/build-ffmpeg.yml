@@ -82,7 +82,7 @@ jobs:
               mingw-w64-x86_64-libiconv
               diffutils
             configure_opts: >-
-              --target-os=win64
+              --target-os=mingw32
               --arch=x86_64
               --cross-prefix=x86_64-w64-mingw32-
               --ar=x86_64-w64-mingw32-ar
@@ -102,7 +102,9 @@ jobs:
             type: build
             install_deps: >-
               make
-              mingw-w64-x86_64-clang-aarch64-toolchain
+              mingw-w64-x86_64-clang
+              mingw-w64-x86_64-clang-aarch64-clang
+              mingw-w64-x86_64-clang-aarch64-lld
               mingw-w64-x86_64-clang-aarch64-pkg-config
               mingw-w64-x86_64-clang-aarch64-zlib
               mingw-w64-x86_64-clang-aarch64-libiconv
@@ -280,8 +282,6 @@ jobs:
       - name: Configure & build FFmpeg (Windows)
         if: matrix.type == 'build' && runner.os == 'Windows'
         shell: msys2 {0}
-        env:
-          DLLTOOL: x86_64-w64-mingw32-dlltool
         run: |
           echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
           CPU_COUNT=$(nproc)
