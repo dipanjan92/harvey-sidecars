@@ -1,4 +1,4 @@
-name: Build FFmpeg Windows from Linux
+name: Build FFmpeg Binaries
 
 permissions:
   contents: write
@@ -38,12 +38,53 @@ jobs:
           # Create new release
           gh release create ${{ env.RELEASE_TAG }} --generate-notes
 
-  build-ffmpeg-windows-x86_64:
+  build:
     needs: prepare-release
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - folder: windows-x86_64
+            os: ubuntu-latest
+            arch: x86_64
+            cross_prefix: x86_64-w64-mingw32-
+            target_os: mingw32
+            extra_opts: "--extra-cflags=-I/usr/x86_64-w64-mingw32/include --extra-ldflags=-L/usr/x86_64-w64-mingw32/lib"
+          - folder: windows-arm64
+            os: ubuntu-latest
+            container: dockcross/windows-arm64
+            arch: aarch64
+            cross_prefix: aarch64-w64-mingw32-
+            target_os: mingw32
+            extra_opts: ""
+          - folder: linux-x86_64
+            os: ubuntu-latest
+            arch: x86_64
+            cross_prefix: ""
+            target_os: linux
+            extra_opts: ""
+          - folder: linux-arm64
+            os: ubuntu-latest
+            arch: aarch64
+            cross_prefix: aarch64-linux-gnu-
+            target_os: linux
+            extra_opts: ""
+          - folder: macos-x86_64
+            os: macos-13
+            arch: x86_64
+            cross_prefix: ""
+            target_os: darwin
+            extra_opts: "--enable-videotoolbox"
+          - folder: macos-arm64
+            os: macos-14
+            arch: arm64
+            cross_prefix: ""
+            target_os: darwin
+            extra_opts: "--enable-videotoolbox"
+
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      MATRIX_FOLDER: windows-x86_64
       RELEASE_TAG: ${{ github.event.inputs.release_tag }}
       FFMPEG_TAG: "n5.1.4"
 
@@ -55,24 +96,52 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install build prerequisites
+      - name: Install build prerequisites (Linux)
+        if: runner.os == 'Linux'
         run: |
-          sudo apt-get update -y
-          sudo apt-get install -y yasm nasm pkg-config libz-mingw-w64-dev mingw-w64 libiconv-hook-dev
+          if [[ "${{ matrix.folder }}" == "windows-x86_64" ]]; then
+            sudo apt-get update -y
+            sudo apt-get install -y yasm nasm pkg-config libz-mingw-w64-dev mingw-w64 libiconv-hook-dev
+          elif [[ "${{ matrix.folder }}" == "linux-x86_64" ]]; then
+            sudo apt-get update -y
+            sudo apt-get install -y yasm nasm pkg-config zlib1g-dev
+          elif [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
+            sudo dpkg --add-architecture arm64
+            sudo rm /etc/apt/sources.list.d/ubuntu.sources || true
+            RELEASE_NAME=$(lsb_release -cs)
+            cat <<-EOF | sudo tee /etc/apt/sources.list
+            deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ ${RELEASE_NAME} main restricted universe multiverse
+            deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ ${RELEASE_NAME}-updates main restricted universe multiverse
+            deb [arch=amd64] http://security.ubuntu.com/ubuntu/ ${RELEASE_NAME}-security main restricted universe multiverse
+            deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports ${RELEASE_NAME} main restricted universe multiverse
+            deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports ${RELEASE_NAME}-updates main restricted universe multiverse
+            deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports ${RELEASE_NAME}-security main restricted universe multiverse
+            EOF
+            sudo apt-get update
+            sudo apt-get install -y yasm nasm pkg-config gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu zlib1g-dev:arm64
+          elif [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
+            apt-get update -y
+            apt-get install -y yasm nasm pkg-config
+          fi
+
+      - name: Install build prerequisites (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install yasm pkg-config nasm
 
       - name: Clone FFmpeg source
         run: |
-          echo "Cloning FFmpeg source branch/tag: ${{ env.FFMPEG_TAG }} for $MATRIX_FOLDER"
+          echo "Cloning FFmpeg source branch/tag: ${{ env.FFMPEG_TAG }} for ${{ matrix.folder }}"
           rm -rf ffmpeg-src # Clean before clone
           git clone --depth 1 --branch "${{ env.FFMPEG_TAG }}" https://git.ffmpeg.org/ffmpeg.git ffmpeg-src
 
       - name: Configure & build FFmpeg
         run: |
-          echo "Configuring and building FFmpeg for $MATRIX_FOLDER on $RUNNER_OS"
-          CPU_COUNT=$(nproc)
+          echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
+          CPU_COUNT=$(nproc || sysctl -n hw.logicalcpu)
           echo "Using $CPU_COUNT cores for make"
 
-          INSTALL_PREFIX="${{ github.workspace }}/ffmpeg/$MATRIX_FOLDER"
+          INSTALL_PREFIX="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
           mkdir -p "${INSTALL_PREFIX}"
           cd ffmpeg-src
 
@@ -80,12 +149,6 @@ jobs:
             --prefix="${INSTALL_PREFIX}"
             --enable-shared
             --disable-static
-          )
-
-          CONFIGURE_OPTS=(
-            --target-os=mingw32
-            --arch=x86_64
-            --cross-prefix=x86_64-w64-mingw32-
             --disable-gpl
             --disable-nonfree
             --disable-ffplay
@@ -93,16 +156,17 @@ jobs:
             --disable-doc
             --enable-zlib
             --disable-libmp3lame
-            --extra-cflags="-I/usr/x86_64-w64-mingw32/include"
-            --extra-ldflags="-L/usr/x86_64-w64-mingw32/lib"
+          )
+
+          CONFIGURE_OPTS=(
+            --arch=${{ matrix.arch }}
+            --cross-prefix=${{ matrix.cross_prefix }}
+            --target-os=${{ matrix.target_os }}
+            ${{ matrix.extra_opts }}
           )
 
           echo "Running configure with matrix opts: ${CONFIGURE_OPTS[@]}"
-          if ! ./configure "${BASE_CONFIGURE_FLAGS[@]}" "${CONFIGURE_OPTS[@]}"; then
-            echo "Configure failed. Dumping config.log"
-            cat ffbuild/config.log
-            exit 1
-          fi
+          ./configure "${BASE_CONFIGURE_FLAGS[@]}" "${CONFIGURE_OPTS[@]}"
           
           make -j${CPU_COUNT}
           make install
@@ -110,138 +174,47 @@ jobs:
 
       - name: Prepare assets for release
         run: |
-          echo "Preparing assets for $MATRIX_FOLDER on $RUNNER_OS"
-          INSTALL_DIR="${{ github.workspace }}/ffmpeg/$MATRIX_FOLDER"
-          RELEASE_DIR="${{ github.workspace }}/release_assets/$MATRIX_FOLDER"
+          echo "Preparing assets for ${{ matrix.folder }} on ${{ matrix.os }}"
+          INSTALL_DIR="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
+          RELEASE_DIR="${{ github.workspace }}/release_assets/${{ matrix.folder }}"
           mkdir -p "${RELEASE_DIR}"
           
-          SRC_EXE_NAME="ffmpeg.exe"
-          FINAL_EXE_NAME="ffmpeg.exe"
-          x86_64-w64-mingw32-strip "${INSTALL_DIR}/bin/${SRC_EXE_NAME}"
-          mv "${INSTALL_DIR}/bin/${SRC_EXE_NAME}" "${RELEASE_DIR}/${FINAL_EXE_NAME}"
-          echo "Copying dll files..."
-          cp -L ${INSTALL_DIR}/bin/*.dll "${RELEASE_DIR}/"
+          if [[ "${{ matrix.os }}" == "ubuntu-latest" && "${{ matrix.arch }}" == "x86_64" ]]; then
+            strip "${INSTALL_DIR}/bin/ffmpeg"
+          elif [[ "${{ matrix.cross_prefix }}" != "" ]]; then
+            ${{ matrix.cross_prefix }}strip "${INSTALL_DIR}/bin/ffmpeg.exe"
+          else
+            strip "${INSTALL_DIR}/bin/ffmpeg"
+          fi
+          
+          cp -r "${INSTALL_DIR}/bin/"* "${RELEASE_DIR}/"
 
           echo "Contents of ${RELEASE_DIR} after asset preparation:"
           ls -R "${RELEASE_DIR}"
 
-      - name: Upload assets
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          RELEASE_DIR="${{ github.workspace }}/release_assets/$MATRIX_FOLDER"
-          cd "${RELEASE_DIR}"
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-${{ matrix.folder }}
+          path: ${{ github.workspace }}/release_assets/${{ matrix.folder }}/
 
-          ZIP_ASSET="ffmpeg-$MATRIX_FOLDER.zip"
-          zip -r "${ZIP_ASSET}" .
-
-          # Create checksum file
-          echo "Creating checksum for ${ZIP_ASSET}"
-          shasum -a 256 "${ZIP_ASSET}" > "${ZIP_ASSET}.sha256"
-
-          echo "Uploading ${ZIP_ASSET} and ${ZIP_ASSET}.sha256 to release ${{ env.RELEASE_TAG }}"
-          gh release upload ${{ env.RELEASE_TAG }} "${ZIP_ASSET}" "${ZIP_ASSET}.sha256" --clobber
-
-  build-ffmpeg-windows-arm64:
-    needs: prepare-release
+  package-release:
+    needs: build
     runs-on: ubuntu-latest
-    container:
-      image: dockcross/windows-arm64
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      MATRIX_FOLDER: windows-arm64
       RELEASE_TAG: ${{ github.event.inputs.release_tag }}
-      FFMPEG_TAG: "n5.1.4"
-
-    defaults:
-      run:
-        shell: bash
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release_assets
 
-      - name: Install build prerequisites
+      - name: Zip assets
         run: |
-          apt-get update -y
-          apt-get install -y yasm nasm pkg-config
+          cd release_assets
+          zip -r ffmpeg-binaries.zip .
 
-      - name: Clone FFmpeg source
+      - name: Upload release asset
         run: |
-          echo "Cloning FFmpeg source branch/tag: ${{ env.FFMPEG_TAG }} for $MATRIX_FOLDER"
-          rm -rf ffmpeg-src # Clean before clone
-          git clone --depth 1 --branch "${{ env.FFMPEG_TAG }}" https://git.ffmpeg.org/ffmpeg.git ffmpeg-src
-
-      - name: Configure & build FFmpeg
-        run: |
-          echo "Configuring and building FFmpeg for $MATRIX_FOLDER on $RUNNER_OS"
-          CPU_COUNT=$(nproc)
-          echo "Using $CPU_COUNT cores for make"
-
-          INSTALL_PREFIX="${{ github.workspace }}/ffmpeg/$MATRIX_FOLDER"
-          mkdir -p "${INSTALL_PREFIX}"
-          cd ffmpeg-src
-
-          BASE_CONFIGURE_FLAGS=(
-            --prefix="${INSTALL_PREFIX}"
-            --enable-shared
-            --disable-static
-          )
-
-          CONFIGURE_OPTS=(
-            --target-os=mingw32
-            --arch=aarch64
-            --cross-prefix=aarch64-w64-mingw32-
-            --disable-gpl
-            --disable-nonfree
-            --disable-ffplay
-            --disable-ffprobe
-            --disable-doc
-            --enable-zlib
-            --disable-libmp3lame
-          )
-
-          echo "Running configure with matrix opts: ${CONFIGURE_OPTS[@]}"
-          if ! ./configure "${BASE_CONFIGURE_FLAGS[@]}" "${CONFIGURE_OPTS[@]}"; then
-            echo "Configure failed. Dumping config.log"
-            cat ffbuild/config.log
-            exit 1
-          fi
-          
-          make -j${CPU_COUNT}
-          make install
-          cd ..
-
-      - name: Prepare assets for release
-        run: |
-          echo "Preparing assets for $MATRIX_FOLDER on $RUNNER_OS"
-          INSTALL_DIR="${{ github.workspace }}/ffmpeg/$MATRIX_FOLDER"
-          RELEASE_DIR="${{ github.workspace }}/release_assets/$MATRIX_FOLDER"
-          mkdir -p "${RELEASE_DIR}"
-          
-          SRC_EXE_NAME="ffmpeg.exe"
-          FINAL_EXE_NAME="ffmpeg.exe"
-          aarch64-w64-mingw32-strip "${INSTALL_DIR}/bin/${SRC_EXE_NAME}"
-          mv "${INSTALL_DIR}/bin/${SRC_EXE_NAME}" "${RELEASE_DIR}/${FINAL_EXE_NAME}"
-          echo "Copying dll files..."
-          cp -L ${INSTALL_DIR}/bin/*.dll "${RELEASE_DIR}/"
-
-          echo "Contents of ${RELEASE_DIR} after asset preparation:"
-          ls -R "${RELEASE_DIR}"
-
-      - name: Upload assets
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          RELEASE_DIR="${{ github.workspace }}/release_assets/$MATRIX_FOLDER"
-          cd "${RELEASE_DIR}"
-
-          ZIP_ASSET="ffmpeg-$MATRIX_FOLDER.zip"
-          zip -r "${ZIP_ASSET}" .
-
-          # Create checksum file
-          echo "Creating checksum for ${ZIP_ASSET}"
-          shasum -a 256 "${ZIP_ASSET}" > "${ZIP_ASSET}.sha256"
-
-          echo "Uploading ${ZIP_ASSET} and ${ZIP_ASSET}.sha256 to release ${{ env.RELEASE_TAG }}"
-          gh release upload ${{ env.RELEASE_TAG }} "${ZIP_ASSET}" "${ZIP_ASSET}.sha256" --clobber
+          gh release upload ${{ env.RELEASE_TAG }} release_assets/ffmpeg-binaries.zip --clobber
