@@ -162,7 +162,7 @@ jobs:
       - name: Install build prerequisites
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y yasm nasm pkg-config gcc-aarch64-w64-mingw32 libz-aarch64-w64-mingw32-dev
+          sudo apt-get install -y yasm nasm pkg-config gcc-mingw-w64-aarch64 g++-mingw-w64-aarch64 libz-mingw-w64-aarch64-dev
 
       - name: Clone FFmpeg source
         run: |
