@@ -55,6 +55,7 @@ jobs:
             os: ubuntu-latest
             container: dockcross/windows-arm64
             arch: aarch64
+            cross_prefix: aarch64-w64-mingw32-
             target_os: mingw32
             extra_opts: "--disable-asm"
           - folder: linux-x86_64
@@ -134,6 +135,14 @@ jobs:
 
       - name: Configure & build FFmpeg
         run: |
+          if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
+            export PATH="/usr/lib/llvm-mingw/bin:$PATH"
+            export CC=aarch64-w64-mingw32-clang
+            export CXX=aarch64-w64-mingw32-clang++
+            export AR=llvm-ar
+            export RANLIB=llvm-ranlib
+          fi
+
           echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
           CPU_COUNT=$(nproc || sysctl -n hw.logicalcpu)
           echo "Using $CPU_COUNT cores for make"
