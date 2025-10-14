@@ -9,7 +9,7 @@ jobs:
 
     steps:
       - name: Build FFmpeg
-        uses: comsa/build-ffmpeg@v1
+        uses: rt-ffmpeg/build-ffmpeg@v1
         with:
           ffmpeg-version: '6.0'
           configure-flags: '--enable-shared --disable-static --disable-gpl --disable-nonfree --disable-ffplay --disable-ffprobe --disable-doc --disable-autodetect --enable-zlib --enable-iconv --enable-d3d11va --disable-libmp3lame'
