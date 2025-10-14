@@ -102,7 +102,6 @@ jobs:
             type: build
             install_deps: >-
               make
-              # Install the x86_64 -> aarch64 cross-compiler toolchain
               mingw-w64-x86_64-clang-aarch64-toolchain
               mingw-w64-x86_64-clang-aarch64-pkg-config
               mingw-w64-x86_64-clang-aarch64-zlib
@@ -281,6 +280,8 @@ jobs:
       - name: Configure & build FFmpeg (Windows)
         if: matrix.type == 'build' && runner.os == 'Windows'
         shell: msys2 {0}
+        env:
+          DLLTOOL: x86_64-w64-mingw32-dlltool
         run: |
           echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
           CPU_COUNT=$(nproc)
@@ -297,14 +298,14 @@ jobs:
           )
 
           echo "Running configure with matrix opts: ${{ matrix.configure_opts }}"
-          if ! env DLLTOOL=x86_64-w64-mingw32-dlltool ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }}; then
+          if ! ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }}; then
             echo "Configure failed. Dumping config.log"
             cat ffbuild/config.log
             exit 1
           fi
           
-          make -j${CPU_COUNT} DLLTOOL=x86_64-w64-mingw32-dlltool
-          make install DLLTOOL=x86_64-w64-mingw32-dlltool
+          make -j${CPU_COUNT}
+          make install
           cd ..
 
       - name: Prepare assets for release
