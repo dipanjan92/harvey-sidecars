@@ -1,0 +1,51 @@
+name: Build FFmpeg Windows from Linux
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-ffmpeg:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install MinGW-w64 toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mingw-w64
+
+      - name: Download and extract FFmpeg
+        run: |
+          curl -L https://ffmpeg.org/releases/ffmpeg-6.0.tar.gz -o ffmpeg-6.0.tar.gz
+          tar -xzf ffmpeg-6.0.tar.gz
+          cd ffmpeg-6.0
+
+      - name: Configure, Build, and Install
+        run: |
+          cd ffmpeg-6.0
+          ./configure --target-os=mingw32 --cross-prefix=x86_64-w64-mingw32- --arch=x86_64 --enable-shared --disable-static \
+            --disable-gpl \
+            --disable-nonfree \
+            --disable-ffplay \
+            --disable-ffprobe \
+            --disable-doc \
+            --disable-autodetect \
+            --enable-zlib \
+            --enable-iconv \
+            --enable-d3d11va \
+            --disable-libmp3lame
+          make -j$(nproc)
+          make install
+
+      - name: Upload FFmpeg build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-x86_64-windows
+          path: |
+            /usr/local/x86_64-w64-mingw32/bin/*.dll
+            /usr/local/x86_64-w64-mingw32/bin/*.exe
+            /usr/local/x86_64-w64-mingw32/lib/*.lib
+            /usr/local/x86_64-w64-mingw32/include/**/*.h
+
