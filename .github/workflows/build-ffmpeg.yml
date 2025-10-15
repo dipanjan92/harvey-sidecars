@@ -124,11 +124,14 @@ jobs:
           rm -rf ffmpeg-src # Clean before clone
           git clone --depth 1 --branch "${{ env.FFMPEG_TAG }}" https://git.ffmpeg.org/ffmpeg.git ffmpeg-src
 
-      - name: DEBUG - List toolchain directory
+      - name: DEBUG - Find toolchain path
         if: matrix.folder == 'windows-arm64'
         run: |
-          echo "Listing contents of /usr/lib/llvm-mingw..."
-          ls -R /usr/lib/llvm-mingw
+          echo "Finding compiler path..."
+          which aarch64-w64-mingw32-clang
+          echo "---"
+          echo "System PATH..."
+          echo $PATH
 
       - name: Configure & build FFmpeg
         run: |
