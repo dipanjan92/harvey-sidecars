@@ -25,17 +25,9 @@ jobs:
 
       - name: Handle Git Tag and Release
         run: |
-          # Delete remote tag
-          git push --delete origin ${{ env.RELEASE_TAG }} || echo "Tag ${{ env.RELEASE_TAG }} not found on remote."
-          # Delete local tag
-          git tag -d ${{ env.RELEASE_TAG }} || echo "Tag ${{ env.RELEASE_TAG }} not found locally."
-          # Delete release
-          gh release delete ${{ env.RELEASE_TAG }} -y || echo "Release ${{ env.RELEASE_TAG }} not found."
-          # Create new tag
-          git tag ${{ env.RELEASE_TAG }}
-          # Push new tag
-          git push origin ${{ env.RELEASE_TAG }}
-          # Create new release
+          # Delete release and associated tag, ignoring errors if it doesn't exist
+          gh release delete ${{ env.RELEASE_TAG }} --yes --cleanup-tag || echo "Release ${{ env.RELEASE_TAG }} not found, proceeding to create it."
+          # Create new release, which also creates the tag
           gh release create ${{ env.RELEASE_TAG }} --generate-notes
 
   build:
