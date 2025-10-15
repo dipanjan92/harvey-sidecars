@@ -124,11 +124,14 @@ jobs:
           rm -rf ffmpeg-src # Clean before clone
           git clone --depth 1 --branch "${{ env.FFMPEG_TAG }}" https://git.ffmpeg.org/ffmpeg.git ffmpeg-src
 
-      - name: DEBUG - Find compiler with find
+      - name: DEBUG - Discover compiler name
         if: matrix.folder == 'windows-arm64'
         run: |
-          echo "Searching for compiler with find..."
-          find / -name aarch64-w64-mingw32-clang 2>/dev/null || echo "Compiler not found with find"
+          echo "Listing executables in /usr/bin..."
+          ls -l /usr/bin
+          echo "---"
+          echo "Listing environment variables..."
+          env
 
       - name: Configure & build FFmpeg
         run: |
