@@ -124,11 +124,11 @@ jobs:
           rm -rf ffmpeg-src # Clean before clone
           git clone --depth 1 --branch "${{ env.FFMPEG_TAG }}" https://git.ffmpeg.org/ffmpeg.git ffmpeg-src
 
-      - name: DEBUG - List /usr/xcc directory
+      - name: DEBUG - Broad search for clang
         if: matrix.folder == 'windows-arm64'
         run: |
-          echo "Listing contents of /usr/xcc..."
-          ls -lR /usr/xcc
+          echo "Searching for '*clang' in the filesystem..."
+          find / -name "*clang" 2>/dev/null || echo "No files ending in 'clang' found"
 
       - name: Configure & build FFmpeg
         run: |
