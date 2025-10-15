@@ -124,11 +124,14 @@ jobs:
           rm -rf ffmpeg-src # Clean before clone
           git clone --depth 1 --branch "${{ env.FFMPEG_TAG }}" https://git.ffmpeg.org/ffmpeg.git ffmpeg-src
 
-      - name: DEBUG - Broad search for clang
+      - name: DEBUG - Filesystem Map
         if: matrix.folder == 'windows-arm64'
         run: |
-          echo "Searching for '*clang' in the filesystem..."
-          find / -name "*clang" 2>/dev/null || echo "No files ending in 'clang' found"
+          echo "Listing root filesystem..."
+          ls -l /
+          echo "---"
+          echo "Listing /usr filesystem..."
+          ls -l /usr
 
       - name: Configure & build FFmpeg
         run: |
