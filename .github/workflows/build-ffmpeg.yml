@@ -155,10 +155,16 @@ jobs:
 
           CONFIGURE_OPTS=(
             --arch=${{ matrix.arch }}
-            --cross-prefix=${{ matrix.cross_prefix }}
             --target-os=${{ matrix.target_os }}
-            ${{ matrix.extra_opts }}
           )
+
+          if [[ -n "${{ matrix.cross_prefix }}" ]]; then
+            CONFIGURE_OPTS+=(--cross-prefix=${{ matrix.cross_prefix }})
+          fi
+
+          if [[ -n "${{ matrix.extra_opts }}" ]]; then
+            CONFIGURE_OPTS+=(${{ matrix.extra_opts }})
+          fi
 
           echo "Running configure with matrix opts: ${CONFIGURE_OPTS[@]}"
           ./configure "${BASE_CONFIGURE_FLAGS[@]}" "${CONFIGURE_OPTS[@]}"
