@@ -124,19 +124,10 @@ jobs:
           rm -rf ffmpeg-src # Clean before clone
           git clone --depth 1 --branch "${{ env.FFMPEG_TAG }}" https://git.ffmpeg.org/ffmpeg.git ffmpeg-src
 
-      - name: DEBUG - Find toolchain path
-        if: matrix.folder == 'windows-arm64'
-        run: |
-          echo "Finding compiler path..."
-          which aarch64-w64-mingw32-clang
-          echo "---"
-          echo "System PATH..."
-          echo $PATH
-
       - name: DEBUG - Find compiler with find
         if: matrix.folder == 'windows-arm64'
         run: |
-          echo "Searching for compiler..."
+          echo "Searching for compiler with find..."
           find / -name aarch64-w64-mingw32-clang 2>/dev/null || echo "Compiler not found with find"
 
       - name: Configure & build FFmpeg
