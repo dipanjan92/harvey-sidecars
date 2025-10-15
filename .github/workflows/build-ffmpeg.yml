@@ -48,7 +48,7 @@ jobs:
             container: dockcross/windows-arm64
             arch: aarch64
             target_os: mingw32
-            extra_opts: "--enable-cross-compile --disable-asm --cc=aarch64-w64-mingw32-clang --cxx=aarch64-w64-mingw32-clang++ --ld=aarch64-w64-mingw32-ld.lld --extra-ldflags=-L/usr/xcc/aarch64-w64-mingw32/lib"
+            extra_opts: "--enable-cross-compile --disable-asm --cc=aarch64-w64-mingw32-clang --cxx=aarch64-w64-mingw32-clang++ --ld=aarch64-w64-mingw32-ld.lld"
           - folder: linux-x86_64
             os: ubuntu-latest
             arch: x86_64
@@ -123,6 +123,12 @@ jobs:
           echo "Cloning FFmpeg source branch/tag: ${{ env.FFMPEG_TAG }} for ${{ matrix.folder }}"
           rm -rf ffmpeg-src # Clean before clone
           git clone --depth 1 --branch "${{ env.FFMPEG_TAG }}" https://git.ffmpeg.org/ffmpeg.git ffmpeg-src
+
+      - name: DEBUG - List /usr/xcc directory
+        if: matrix.folder == 'windows-arm64'
+        run: |
+          echo "Listing contents of /usr/xcc..."
+          ls -lR /usr/xcc
 
       - name: Configure & build FFmpeg
         run: |
