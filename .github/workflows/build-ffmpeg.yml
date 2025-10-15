@@ -133,6 +133,12 @@ jobs:
           echo "System PATH..."
           echo $PATH
 
+      - name: DEBUG - Find compiler with find
+        if: matrix.folder == 'windows-arm64'
+        run: |
+          echo "Searching for compiler..."
+          find / -name aarch64-w64-mingw32-clang 2>/dev/null || echo "Compiler not found with find"
+
       - name: Configure & build FFmpeg
         run: |
           if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
