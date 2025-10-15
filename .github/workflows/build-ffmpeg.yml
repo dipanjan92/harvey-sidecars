@@ -48,7 +48,7 @@ jobs:
             container: dockcross/windows-arm64
             arch: aarch64
             target_os: mingw32
-            extra_opts: "--enable-cross-compile --disable-asm"
+            extra_opts: "--enable-cross-compile --disable-asm --cc=aarch64-w64-mingw32-clang --cxx=aarch64-w64-mingw32-clang++ --ld=aarch64-w64-mingw32-ld.lld --extra-ldflags=-L/usr/lib"
           - folder: linux-x86_64
             os: ubuntu-latest
             arch: x86_64
