@@ -140,6 +140,7 @@ jobs:
             export CXX=aarch64-w64-mingw32-clang++
             export AR=llvm-ar
             export RANLIB=llvm-ranlib
+            export LD=aarch64-w64-mingw32-ld.lld
           fi
 
           echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
