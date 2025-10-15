@@ -56,7 +56,7 @@ jobs:
             container: dockcross/windows-arm64
             arch: aarch64
             target_os: mingw32
-            extra_opts: ""
+            extra_opts: "--disable-asm"
           - folder: linux-x86_64
             os: ubuntu-latest
             arch: x86_64
@@ -135,9 +135,11 @@ jobs:
       - name: Configure & build FFmpeg
         run: |
           if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
-            export CC=aarch64-w64-mingw32-gcc
-            export CXX=aarch64-w64-mingw32-g++
-            export PKG_CONFIG=aarch64-w64-mingw32-pkg-config
+            export PATH="/usr/lib/llvm-mingw/bin:$PATH"
+            export CC=aarch64-w64-mingw32-clang
+            export CXX=aarch64-w64-mingw32-clang++
+            export AR=llvm-ar
+            export RANLIB=llvm-ranlib
           fi
 
           echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
