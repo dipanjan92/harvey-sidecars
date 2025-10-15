@@ -48,14 +48,7 @@ jobs:
             container: dockcross/windows-arm64
             arch: aarch64
             target_os: mingw32
-            extra_opts: >-
-              --enable-cross-compile
-              --disable-asm
-              --cc=aarch64-w64-mingw32-clang
-              --cxx=aarch64-w64-mingw32-clang++
-              --ld=aarch64-w64-mingw32-ld.lld
-              --extra-cflags="-I/usr/lib/llvm-mingw/aarch64-w64-mingw32/include"
-              --extra-ldflags="-L/usr/lib/llvm-mingw/aarch64-w64-mingw32/lib"
+            extra_opts: "--enable-cross-compile --disable-asm --cc=aarch64-w64-mingw32-clang --cxx=aarch64-w64-mingw32-clang++ --ld=aarch64-w64-mingw32-ld.lld"
           - folder: linux-x86_64
             os: ubuntu-latest
             arch: x86_64
@@ -131,6 +124,12 @@ jobs:
           rm -rf ffmpeg-src # Clean before clone
           git clone --depth 1 --branch "${{ env.FFMPEG_TAG }}" https://git.ffmpeg.org/ffmpeg.git ffmpeg-src
 
+      - name: DEBUG - List toolchain directory
+        if: matrix.folder == 'windows-arm64'
+        run: |
+          echo "Listing contents of /usr/lib/llvm-mingw..."
+          ls -R /usr/lib/llvm-mingw
+
       - name: Configure & build FFmpeg
         run: |
           if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
@@ -162,16 +161,10 @@ jobs:
 
           CONFIGURE_OPTS=(
             --arch=${{ matrix.arch }}
+            --cross-prefix=${{ matrix.cross_prefix }}
             --target-os=${{ matrix.target_os }}
+            ${{ matrix.extra_opts }}
           )
-
-          if [[ -n "${{ matrix.cross_prefix }}" ]]; then
-            CONFIGURE_OPTS+=(--cross-prefix=${{ matrix.cross_prefix }})
-          fi
-
-          if [[ -n "${{ matrix.extra_opts }}" ]]; then
-            CONFIGURE_OPTS+=(${{ matrix.extra_opts }})
-          fi
 
           echo "Running configure with matrix opts: ${CONFIGURE_OPTS[@]}"
           ./configure "${BASE_CONFIGURE_FLAGS[@]}" "${CONFIGURE_OPTS[@]}"
