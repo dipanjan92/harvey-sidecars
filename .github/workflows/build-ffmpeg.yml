@@ -269,8 +269,9 @@ jobs:
 
           # Copy all binaries (executable and shared libraries) to staging
           # The -L flag dereferences symlinks, which is important for macOS frameworks
-          cp -L "${INSTALL_DIR}/bin"/* "${STAGING_DIR}/"
-          cp -L "${INSTALL_DIR}/lib"/* "${STAGING_DIR}/"
+          # The -r flag enables recursive copy for subdirectories like 'pkgconfig'
+          cp -Lr "${INSTALL_DIR}/bin"/* "${STAGING_DIR}/"
+          cp -Lr "${INSTALL_DIR}/lib"/* "${STAGING_DIR}/"
 
           # Create Zip archive from the staging directory
           cd "${STAGING_DIR}"
