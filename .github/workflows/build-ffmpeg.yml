@@ -153,6 +153,7 @@ jobs:
           git clone --depth 1 --branch "${{ env.FFMPEG_TAG }}" https://git.ffmpeg.org/ffmpeg.git ffmpeg-src
 
       - name: Configure & build FFmpeg
+        if: runner.os != 'Windows'
         run: |
           if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
             export PATH="/usr/lib/llvm-mingw/bin:$PATH"
@@ -234,24 +235,30 @@ jobs:
           fi
 
       - name: Prepare assets for release
+        shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash' }}
         run: |
           echo "Preparing assets for ${{ matrix.folder }} on ${{ matrix.os }}"
           INSTALL_DIR="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
           RELEASE_DIR="${{ github.workspace }}/release_assets/${{ matrix.folder }}"
           mkdir -p "${RELEASE_DIR}"
-          
-          if [[ "${{ matrix.target_os }}" == "mingw32" ]]; then
+
+          # Determine executable name based on the OS
+          if [[ "${{ runner.os }}" == "Windows" || "${{ matrix.target_os }}" == "mingw32" ]]; then
             EXE_NAME="ffmpeg.exe"
           else
             EXE_NAME="ffmpeg"
           fi
 
-          if [[ "${{ matrix.cross_prefix }}" != "" ]]; then
+          # Strip the binary
+          if [[ -n "${{ matrix.cross_prefix }}" ]]; then
+            echo "Stripping with cross-prefix: ${{ matrix.cross_prefix }}strip"
             ${{ matrix.cross_prefix }}strip "${INSTALL_DIR}/bin/${EXE_NAME}"
           else
+            echo "Stripping with default strip"
             strip "${INSTALL_DIR}/bin/${EXE_NAME}"
           fi
           
+          # Copy all binaries to the release directory
           cp -r "${INSTALL_DIR}/bin/"* "${RELEASE_DIR}/"
 
           echo "Contents of ${RELEASE_DIR} after asset preparation:"
