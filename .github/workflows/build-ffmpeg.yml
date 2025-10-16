@@ -105,7 +105,7 @@ jobs:
             echo "deb [arch=amd64] http://security.ubuntu.com/ubuntu/ ${RELEASE_NAME}-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
             echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports ${RELEASE_NAME} main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
             echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports ${RELEASE_NAME}-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
-            echo "deb [arm64] http://ports.ubuntu.com/ubuntu-ports ${RELEASE_NAME}-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
+            echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports ${RELEASE_NAME}-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
             sudo apt-get update
             sudo apt-get install -y yasm nasm pkg-config gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu zlib1g-dev:arm64
           fi
