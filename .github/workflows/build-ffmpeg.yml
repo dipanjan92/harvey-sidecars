@@ -67,6 +67,12 @@ jobs:
             cross_prefix: ""
             target_os: darwin
             extra_opts: "--enable-videotoolbox"
+          - folder: windows-arm64
+            os: windows-latest
+            arch: aarch64
+            cross_prefix: ""
+            target_os: win64
+            extra_opts: ""
 
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -99,7 +105,7 @@ jobs:
             echo "deb [arch=amd64] http://security.ubuntu.com/ubuntu/ ${RELEASE_NAME}-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
             echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports ${RELEASE_NAME} main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
             echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports ${RELEASE_NAME}-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
-            echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports ${RELEASE_NAME}-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
+            echo "deb [arm64] http://ports.ubuntu.com/ubuntu-ports ${RELEASE_NAME}-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
             sudo apt-get update
             sudo apt-get install -y yasm nasm pkg-config gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu zlib1g-dev:arm64
           fi
@@ -109,20 +115,29 @@ jobs:
         run: |
           brew install yasm pkg-config nasm
 
+      - name: Setup MSYS2 for Windows build
+        if: matrix.folder == 'windows-arm64'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: CLANGARM64
+          update: true
+          install: >-
+            make
+            mingw-w64-clang-aarch64-toolchain
+            mingw-w64-clang-aarch64-lld
+            mingw-w64-clang-aarch64-pkg-config
+            mingw-w64-clang-aarch64-zlib
+            mingw-w64-clang-aarch64-libiconv
+
       - name: Clone FFmpeg source
         run: |
           echo "Cloning FFmpeg source branch/tag: ${{ env.FFMPEG_TAG }} for ${{ matrix.folder }}"
           rm -rf ffmpeg-src # Clean before clone
           git clone --depth 1 --branch "${{ env.FFMPEG_TAG }}" https://git.ffmpeg.org/ffmpeg.git ffmpeg-src
 
-      - name: Configure & build FFmpeg
+      - name: Configure & build FFmpeg (non-Windows)
+        if: runner.os != 'Windows'
         run: |
-          if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
-            export PATH="/usr/lib/llvm-mingw/bin:$PATH"
-            export AR=llvm-ar
-            export RANLIB=llvm-ranlib
-          fi
-
           echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
           CPU_COUNT=$(nproc || sysctl -n hw.logicalcpu)
           echo "Using $CPU_COUNT cores for make"
@@ -158,6 +173,58 @@ jobs:
           make install
           cd ..
 
+      - name: Configure & build FFmpeg (Windows)
+        if: matrix.folder == 'windows-arm64'
+        shell: msys2 {0}
+        run: |
+          echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
+          CPU_COUNT=$(nproc)
+          echo "Using $CPU_COUNT cores for make"
+
+          INSTALL_PREFIX="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
+          mkdir -p "${INSTALL_PREFIX}"
+          cd ffmpeg-src
+
+          BASE_CONFIGURE_FLAGS=(
+            --prefix="${INSTALL_PREFIX}"
+            --disable-shared
+            --enable-static
+            --pkg-config-flags="--static"
+          )
+
+          # These opts are from the working update-ffmpeg.yml workflow for windows-arm64
+          CONFIGURE_OPTS=(
+            --target-os=win64
+            --arch=aarch64
+            --cc=clang
+            --cxx=clang++
+            --ar=llvm-ar
+            --ranlib=llvm-ranlib
+            --enable-cross-compile
+            --disable-asm
+            --disable-gpl
+            --disable-nonfree
+            --disable-ffplay
+            --disable-ffprobe
+            --disable-doc
+            --enable-zlib
+            --enable-iconv
+            --disable-libmp3lame
+            --extra-cflags="-fuse-ld=lld"
+            --extra-cxxflags="-fuse-ld=lld"
+          )
+
+          echo "Running configure with opts: ${CONFIGURE_OPTS[@]}"
+          if ! ./configure "${BASE_CONFIGURE_FLAGS[@]}" "${CONFIGURE_OPTS[@]}"; then
+            echo "Configure failed. Dumping config.log"
+            cat ffbuild/config.log
+            exit 1
+          fi
+
+          make -j${CPU_COUNT}
+          make install
+          cd ..
+
       - name: Show config.log on failure
         if: failure()
         run: |
@@ -171,30 +238,54 @@ jobs:
           INSTALL_DIR="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
           ASSET_DIR="${{ github.workspace }}/assets"
           mkdir -p "${ASSET_DIR}"
+          ZIP_NAME="ffmpeg-${{ matrix.folder }}.zip"
 
           # Determine executable name
-          if [[ "${{ matrix.target_os }}" == "mingw32" ]]; then
+          if [[ "${{ matrix.target_os }}" == "mingw32" || "${{ matrix.target_os }}" == "win64" ]]; then
             EXE_NAME="ffmpeg.exe"
           else
             EXE_NAME="ffmpeg"
           fi
 
-          # Strip the binary
-          if [[ -n "${{ matrix.cross_prefix }}" ]]; then
-            ${{ matrix.cross_prefix }}strip "${INSTALL_DIR}/bin/${EXE_NAME}"
+          if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
+            # Handle static windows-arm64 build
+            echo "Packaging statically built ffmpeg.exe for windows-arm64"
+            # The executable is in the bin directory
+            STATIC_EXE_PATH="${INSTALL_DIR}/bin/${EXE_NAME}"
+            if [[ -f "${STATIC_EXE_PATH}" ]]; then
+              strip "${STATIC_EXE_PATH}"
+              # Create zip from the single executable
+              cd "${INSTALL_DIR}/bin"
+              zip "${ASSET_DIR}/${ZIP_NAME}" "${EXE_NAME}"
+              cd -
+            else
+              echo "Error: ${EXE_NAME} not found in ${INSTALL_DIR}/bin/"
+              exit 1
+            fi
           else
-            strip "${INSTALL_DIR}/bin/${EXE_NAME}"
+            # Handle shared builds for all other platforms
+            echo "Packaging shared build for ${{ matrix.folder }}"
+            # Strip the main binary
+            if [[ -n "${{ matrix.cross_prefix }}" ]]; then
+              ${{ matrix.cross_prefix }}strip "${INSTALL_DIR}/bin/${EXE_NAME}"
+            else
+              strip "${INSTALL_DIR}/bin/${EXE_NAME}"
+            fi
+            # Create Zip archive from all files in bin
+            cd "${INSTALL_DIR}/bin"
+            zip "${ASSET_DIR}/${ZIP_NAME}" *
+            cd -
           fi
 
-          # Create Zip archive
-          ZIP_NAME="ffmpeg-${{ matrix.folder }}.zip"
-          cd "${INSTALL_DIR}/bin"
-          zip "${ASSET_DIR}/${ZIP_NAME}" *
-          cd -
-
-          # Create checksum
+          # Create checksum, which needs to be cross-platform
           cd "${ASSET_DIR}"
-          shasum -a 256 "${ZIP_NAME}" > "${ZIP_NAME}.sha256"
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            # Using PowerShell for robust checksum generation on Windows
+            powershell -Command "Get-FileHash -Algorithm SHA256 '${ZIP_NAME}' | ForEach-Object { \$_.Hash.ToLower() + '  ' + (Split-Path -Leaf \$_.Path) } > '${ZIP_NAME}.sha256'"
+          else
+            shasum -a 256 "${ZIP_NAME}" > "${ZIP_NAME}.sha256"
+          fi
+          cat "${ZIP_NAME}.sha256" # Output checksum for verification
           cd -
 
           # Upload assets
