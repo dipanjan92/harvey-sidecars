@@ -43,35 +43,6 @@ jobs:
             cross_prefix: x86_64-w64-mingw32-
             target_os: mingw32
             extra_opts: "--extra-cflags=-I/usr/x86_64-w64-mingw32/include --extra-ldflags=-L/usr/x86_64-w64-mingw32/lib"
-          - os: windows-latest
-            folder: windows-arm64
-            type: build
-            install_deps: >-
-              make
-              mingw-w64-clang-x86_64-toolchain
-              mingw-w64-clang-x86_64-lld
-              mingw-w64-clang-aarch64-pkg-config
-              mingw-w64-clang-aarch64-zlib
-              mingw-w64-clang-aarch64-libiconv
-            configure_opts: >-
-              --target-os=win64
-              --arch=aarch64
-              --cc=clang
-              --cxx=clang++
-              --ar=llvm-ar
-              --ranlib=llvm-ranlib
-              --enable-cross-compile
-              --disable-asm
-              --disable-gpl
-              --disable-nonfree
-              --disable-ffplay
-              --disable-ffprobe
-              --disable-doc
-              --enable-zlib
-              --enable-iconv
-              --disable-libmp3lame
-              --extra-cflags="-fuse-ld=lld"
-              --extra-cxxflags="-fuse-ld=lld"
           - folder: linux-x86_64
             os: ubuntu-latest
             arch: x86_64
@@ -133,14 +104,6 @@ jobs:
             sudo apt-get install -y yasm nasm pkg-config gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu zlib1g-dev:arm64
           fi
 
-      - name: Setup MSYS2 environment (Windows)
-        if: runner.os == 'Windows' && matrix.type == 'build'
-        uses: msys2/setup-msys2@v2
-        with:
-          msystem: ${{ matrix.folder == 'windows-arm64' && 'CLANGARM64' || 'MINGW64' }}
-          update: true
-          install: ${{ matrix.install_deps }}
-
       - name: Install build prerequisites (macOS)
         if: runner.os == 'macOS'
         run: |
@@ -153,7 +116,6 @@ jobs:
           git clone --depth 1 --branch "${{ env.FFMPEG_TAG }}" https://git.ffmpeg.org/ffmpeg.git ffmpeg-src
 
       - name: Configure & build FFmpeg
-        if: runner.os != 'Windows'
         run: |
           if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
             export PATH="/usr/lib/llvm-mingw/bin:$PATH"
@@ -196,36 +158,6 @@ jobs:
           make install
           cd ..
 
-      - name: Configure & build FFmpeg (Windows)
-        if: matrix.type == 'build' && runner.os == 'Windows'
-        shell: msys2 {0}
-        run: |
-          echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
-          CPU_COUNT=$(nproc)
-          echo "Using $CPU_COUNT cores for make"
-
-          INSTALL_PREFIX="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
-          mkdir -p "${INSTALL_PREFIX}"
-          cd ffmpeg-src
-
-          BASE_CONFIGURE_FLAGS=(
-            --prefix="${INSTALL_PREFIX}"
-            --disable-shared
-            --enable-static
-            --pkg-config-flags="--static"
-          )
-
-          echo "Running configure with matrix opts: ${{ matrix.configure_opts }}"
-          if ! ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }}; then
-            echo "Configure failed. Dumping config.log"
-            cat ffbuild/config.log
-            exit 1
-          fi
-
-          make -j${CPU_COUNT}
-          make install
-          cd ..
-
       - name: Show config.log on failure
         if: failure()
         run: |
@@ -235,25 +167,28 @@ jobs:
           fi
 
       - name: Prepare assets for release
-        shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash' }}
         run: |
+          echo "Preparing assets for ${{ matrix.folder }} on ${{ matrix.os }}"
           INSTALL_DIR="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
           RELEASE_DIR="${{ github.workspace }}/release_assets/${{ matrix.folder }}"
           mkdir -p "${RELEASE_DIR}"
 
-          if [[ "${{ runner.os }}" == "Windows" || "${{ matrix.target_os }}" == "mingw32" ]]; then
+          if [[ "${{ matrix.target_os }}" == "mingw32" ]]; then
             EXE_NAME="ffmpeg.exe"
           else
             EXE_NAME="ffmpeg"
           fi
 
-          if [[ -n "${{ matrix.cross_prefix }}" ]]; then
+          if [[ "${{ matrix.cross_prefix }}" != "" ]]; then
             ${{ matrix.cross_prefix }}strip "${INSTALL_DIR}/bin/${EXE_NAME}"
           else
             strip "${INSTALL_DIR}/bin/${EXE_NAME}"
           fi
           
           cp -r "${INSTALL_DIR}/bin/"* "${RELEASE_DIR}/"
+
+          echo "Contents of ${RELEASE_DIR} after asset preparation:"
+          ls -R "${RELEASE_DIR}"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
