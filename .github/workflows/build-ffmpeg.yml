@@ -282,7 +282,7 @@ jobs:
           cd -
 
           # Upload assets
-          gh release upload ${{ env.RELEASE_TAG }} "${ASSET_DIR}/${ZIP_NAME}" "${ASSET_DIR}/${ZIP_NAME}.sha256" --clobber
+          gh release upload ${{ env.RELEASE_TAG }} "${ASSET_DIR}/${ZIP_NAME}" "${ASSET_DIR}/${ZIP_NAME}.sha256" --clobber --repo ${{ github.repository }}
 
       - name: Package and Upload Release Assets (Windows)
         if: runner.os == 'Windows'
@@ -316,4 +316,4 @@ jobs:
 
           # Create checksum and upload
           (Get-FileHash $zipPath -Algorithm SHA256).Hash.ToLower() + "  " + $zipName | Set-Content -Path $checksumPath
-          gh release upload ${{ env.RELEASE_TAG }} $zipPath $checksumPath --clobber
+          gh release upload ${{ env.RELEASE_TAG }} $zipPath $checksumPath --clobber --repo ${{ github.repository }}
