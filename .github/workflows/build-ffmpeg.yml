@@ -133,7 +133,20 @@ jobs:
         run: |
           echo "Cloning FFmpeg source branch/tag: ${{ env.FFMPEG_TAG }} for ${{ matrix.folder }}"
           rm -rf ffmpeg-src # Clean before clone
-          git clone --depth 1 --branch "${{ env.FFMPEG_TAG }}" https://git.ffmpeg.org/ffmpeg.git ffmpeg-src
+
+          for i in {1..3}; do
+            if git clone --depth 1 --branch "${{ env.FFMPEG_TAG }}" https://git.ffmpeg.org/ffmpeg.git ffmpeg-src; then
+              echo "FFmpeg cloned successfully on attempt $i."
+              break
+            fi
+            if [[ $i -lt 3 ]]; then
+              echo "Attempt $i failed. Retrying in 5 seconds..."
+              sleep 5
+            else
+              echo "Failed to clone FFmpeg after 3 attempts."
+              exit 1
+            fi
+          done
 
       - name: Configure & build FFmpeg (non-Windows)
         if: runner.os != 'Windows'
