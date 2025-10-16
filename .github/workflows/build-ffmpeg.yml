@@ -39,34 +39,29 @@ jobs:
         include:
           - folder: windows-x86_64
             os: ubuntu-latest
-            arch: x86_64
             cross_prefix: x86_64-w64-mingw32-
             target_os: mingw32
-            extra_opts: "--extra-cflags=-I/usr/x86_64-w64-mingw32/include --extra-ldflags=-L/usr/x86_64-w64-mingw32/lib"
+            configure_opts: "--arch=x86_64 --extra-cflags=-I/usr/x86_64-w64-mingw32/include --extra-ldflags=-L/usr/x86_64-w64-mingw32/lib"
           - folder: linux-x86_64
             os: ubuntu-latest
-            arch: x86_64
             cross_prefix: ""
             target_os: linux
-            extra_opts: ""
+            configure_opts: "--arch=x86_64"
           - folder: linux-arm64
             os: ubuntu-latest
-            arch: aarch64
             cross_prefix: aarch64-linux-gnu-
             target_os: linux
-            extra_opts: ""
+            configure_opts: "--arch=aarch64"
           - folder: macos-x86_64
             os: macos-13
-            arch: x86_64
             cross_prefix: ""
             target_os: darwin
-            extra_opts: "--enable-videotoolbox"
+            configure_opts: "--arch=x86_64 --enable-videotoolbox"
           - folder: macos-arm64
             os: macos-14
-            arch: arm64
             cross_prefix: ""
             target_os: darwin
-            extra_opts: "--enable-videotoolbox"
+            configure_opts: "--arch=arm64 --enable-videotoolbox"
           - folder: windows-arm64
             os: windows-latest
             target_os: win64
@@ -190,23 +185,18 @@ jobs:
             --disable-libmp3lame
           )
 
-          # Use a script to build the configure options array conditionally
-          CONFIGURE_OPTS_CMD=()
-          if [[ -n "${{ matrix.arch }}" ]]; then
-            CONFIGURE_OPTS_CMD+=(--arch=${{ matrix.arch }})
-          fi
+          # Base configure options including matrix-specific ones
+          CONFIGURE_OPTS=(
+            --target-os=${{ matrix.target_os }}
+            ${{ matrix.configure_opts }}
+          )
           if [[ -n "${{ matrix.cross_prefix }}" ]]; then
-            CONFIGURE_OPTS_CMD+=(--cross-prefix=${{ matrix.cross_prefix }})
-          fi
-          if [[ -n "${{ matrix.target_os }}" ]]; then
-            CONFIGURE_OPTS_CMD+=(--target-os=${{ matrix.target_os }})
-          fi
-          if [[ -n "${{ matrix.extra_opts }}" ]]; then
-            CONFIGURE_OPTS_CMD+=(${{ matrix.extra_opts }})
+            CONFIGURE_OPTS+=(--cross-prefix=${{ matrix.cross_prefix }})
+            CONFIGURE_OPTS+=(--enable-cross-compile)
           fi
 
-          echo "Running configure with matrix opts: ${CONFIGURE_OPTS_CMD[@]}"
-          ./configure "${BASE_CONFIGURE_FLAGS[@]}" "${CONFIGURE_OPTS_CMD[@]}"
+          echo "Running configure with opts: ${CONFIGURE_OPTS[@]}"
+          ./configure "${BASE_CONFIGURE_FLAGS[@]}" "${CONFIGURE_OPTS[@]}"
 
           make -j${CPU_COUNT}
           make install
