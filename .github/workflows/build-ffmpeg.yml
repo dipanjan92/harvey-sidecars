@@ -28,7 +28,7 @@ jobs:
           # Delete release and associated tag, ignoring errors if it doesn't exist
           gh release delete ${{ env.RELEASE_TAG }} --yes --cleanup-tag || echo "Release ${{ env.RELEASE_TAG }} not found, proceeding to create it."
           # Create new release, which also creates the tag
-          gh release create ${{ env.RELEASE_TAG }} --notes "Supported platforms: windows-x86_64, linux-x86_64, linux-arm64, macos-x86_64, macos-arm64"
+          gh release create ${{ env.RELEASE_TAG }} --title "${{ env.RELEASE_TAG }}" --notes "Supported platforms: windows-x86_64, linux-x86_64, linux-arm64, macos-x86_64, macos-arm64"
 
   build:
     needs: prepare-release
