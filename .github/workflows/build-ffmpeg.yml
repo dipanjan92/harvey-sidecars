@@ -69,10 +69,33 @@ jobs:
             extra_opts: "--enable-videotoolbox"
           - folder: windows-arm64
             os: windows-latest
-            arch: aarch64
-            cross_prefix: ""
-            target_os: win64
-            extra_opts: ""
+            msystem: CLANG64
+            install_deps: >-
+              make
+              mingw-w64-clang-x86_64-toolchain
+              mingw-w64-clang-x86_64-lld
+              mingw-w64-clang-aarch64-pkg-config
+              mingw-w64-clang-aarch64-zlib
+              mingw-w64-clang-aarch64-libiconv
+            configure_opts: >-
+              --target-os=win64
+              --arch=aarch64
+              --cc=clang
+              --cxx=clang++
+              --ar=llvm-ar
+              --ranlib=llvm-ranlib
+              --enable-cross-compile
+              --disable-asm
+              --disable-gpl
+              --disable-nonfree
+              --disable-ffplay
+              --disable-ffprobe
+              --disable-doc
+              --enable-zlib
+              --enable-iconv
+              --disable-libmp3lame
+              --extra-cflags="-fuse-ld=lld"
+              --extra-cxxflags="-fuse-ld=lld"
 
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -119,15 +142,9 @@ jobs:
         if: matrix.folder == 'windows-arm64'
         uses: msys2/setup-msys2@v2
         with:
-          msystem: CLANG64
+          msystem: ${{ matrix.msystem }}
           update: true
-          install: >-
-            make
-            mingw-w64-clang-x86_64-toolchain
-            mingw-w64-clang-x86_64-lld
-            mingw-w64-clang-aarch64-pkg-config
-            mingw-w64-clang-aarch64-zlib
-            mingw-w64-clang-aarch64-libiconv
+          install: ${{ matrix.install_deps }}
 
       - name: Clone FFmpeg source
         run: |
@@ -172,16 +189,24 @@ jobs:
             --disable-libmp3lame
           )
 
-          CONFIGURE_OPTS=(
-            --arch=${{ matrix.arch }}
-            --cross-prefix=${{ matrix.cross_prefix }}
-            --target-os=${{ matrix.target_os }}
-            ${{ matrix.extra_opts }}
-          )
+          # Use a script to build the configure options array conditionally
+          CONFIGURE_OPTS_CMD=()
+          if [[ -n "${{ matrix.arch }}" ]]; then
+            CONFIGURE_OPTS_CMD+=(--arch=${{ matrix.arch }})
+          fi
+          if [[ -n "${{ matrix.cross_prefix }}" ]]; then
+            CONFIGURE_OPTS_CMD+=(--cross-prefix=${{ matrix.cross_prefix }})
+          fi
+          if [[ -n "${{ matrix.target_os }}" ]]; then
+            CONFIGURE_OPTS_CMD+=(--target-os=${{ matrix.target_os }})
+          fi
+          if [[ -n "${{ matrix.extra_opts }}" ]]; then
+            CONFIGURE_OPTS_CMD+=(${{ matrix.extra_opts }})
+          fi
 
-          echo "Running configure with matrix opts: ${CONFIGURE_OPTS[@]}"
-          ./configure "${BASE_CONFIGURE_FLAGS[@]}" "${CONFIGURE_OPTS[@]}"
-          
+          echo "Running configure with matrix opts: ${CONFIGURE_OPTS_CMD[@]}"
+          ./configure "${BASE_CONFIGURE_FLAGS[@]}" "${CONFIGURE_OPTS_CMD[@]}"
+
           make -j${CPU_COUNT}
           make install
           cd ..
@@ -205,30 +230,8 @@ jobs:
             --pkg-config-flags="--static"
           )
 
-          # These opts are from the working update-ffmpeg.yml workflow for windows-arm64
-          CONFIGURE_OPTS=(
-            --target-os=win64
-            --arch=aarch64
-            --cc=clang
-            --cxx=clang++
-            --ar=llvm-ar
-            --ranlib=llvm-ranlib
-            --enable-cross-compile
-            --disable-asm
-            --disable-gpl
-            --disable-nonfree
-            --disable-ffplay
-            --disable-ffprobe
-            --disable-doc
-            --enable-zlib
-            --enable-iconv
-            --disable-libmp3lame
-            --extra-cflags="-fuse-ld=lld"
-            --extra-cxxflags="-fuse-ld=lld"
-          )
-
-          echo "Running configure with opts: ${CONFIGURE_OPTS[@]}"
-          if ! ./configure "${BASE_CONFIGURE_FLAGS[@]}" "${CONFIGURE_OPTS[@]}"; then
+          echo "Running configure with matrix opts: ${{ matrix.configure_opts }}"
+          if ! ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }}; then
             echo "Configure failed. Dumping config.log"
             cat ffbuild/config.log
             exit 1
