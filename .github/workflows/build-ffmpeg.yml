@@ -257,7 +257,12 @@ jobs:
           ASSET_DIR="${{ github.workspace }}/assets"
           mkdir -p "${ASSET_DIR}"
           ZIP_NAME="ffmpeg-${{ matrix.folder }}.zip"
-          EXE_NAME="ffmpeg"
+
+          if [[ "${{ matrix.target_os }}" == "mingw32" ]]; then
+            EXE_NAME="ffmpeg.exe"
+          else
+            EXE_NAME="ffmpeg"
+          fi
 
           # Strip the binary
           if [[ -n "${{ matrix.cross_prefix }}" ]]; then
@@ -311,4 +316,4 @@ jobs:
 
           # Create checksum and upload
           (Get-FileHash $zipPath -Algorithm SHA256).Hash.ToLower() + "  " + $zipName | Set-Content -Path $checksumPath
-          gh release upload ${{ env.RELEASE_TAG }} $zipPath, $checksumPath --clobber
+          gh release upload ${{ env.RELEASE_TAG }} $zipPath $checksumPath --clobber
