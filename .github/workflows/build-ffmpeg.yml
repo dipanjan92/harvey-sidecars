@@ -69,6 +69,7 @@ jobs:
             extra_opts: "--enable-videotoolbox"
           - folder: windows-arm64
             os: windows-latest
+            target_os: win64
             msystem: CLANG64
             install_deps: >-
               make
