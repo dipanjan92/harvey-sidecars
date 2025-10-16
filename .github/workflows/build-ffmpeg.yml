@@ -48,7 +48,7 @@ jobs:
             container: dockcross/windows-arm64
             arch: aarch64
             target_os: mingw32
-            extra_opts: "--enable-cross-compile --disable-asm --cc=aarch64-w64-mingw32-gcc --cxx=aarch64-w64-mingw32-g++ --ld=aarch64-w64-mingw32-ld --extra-ldflags=-L/usr/xcc/aarch64-w64-mingw32-cross/lib"
+            extra_opts: "--enable-cross-compile --disable-asm --extra-cflags=-I/usr/xcc/aarch64-w64-mingw32-cross/include --extra-ldflags=-L/usr/xcc/aarch64-w64-mingw32-cross/lib"
           - folder: linux-x86_64
             os: ubuntu-latest
             arch: x86_64
@@ -127,9 +127,12 @@ jobs:
       - name: Configure & build FFmpeg
         run: |
           if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
-            export PATH="/usr/lib/llvm-mingw/bin:$PATH"
-            export AR=llvm-ar
-            export RANLIB=llvm-ranlib
+            export PATH="/usr/xcc/aarch64-w64-mingw32-cross/bin:$PATH"
+            export AR=aarch64-w64-mingw32-ar
+            export RANLIB=aarch64-w64-mingw32-ranlib
+            export CC=aarch64-w64-mingw32-gcc
+            export CXX=aarch64-w64-mingw32-g++
+            export LD=aarch64-w64-mingw32-ld
           fi
 
           echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
