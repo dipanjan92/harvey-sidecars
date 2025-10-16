@@ -73,7 +73,6 @@ jobs:
             msystem: CLANG64
             install_deps: >-
               make
-              zip
               mingw-w64-clang-x86_64-toolchain
               mingw-w64-clang-x86_64-lld
               mingw-w64-clang-aarch64-pkg-config
@@ -125,8 +124,8 @@ jobs:
             sudo dpkg --add-architecture arm64
             sudo rm /etc/apt/sources.list.d/ubuntu.sources || true
             RELEASE_NAME=$(lsb_release -cs)
-            echo "deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ ${RELEASE_NAME} main restricted universe multiverse" | sudo tee /etc/apt/sources.list
-            echo "deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ ${RELEASE_NAME}-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
+            echo "deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ ${RELEASE_NAME} main restricted universe multiverse" | sudo tee /etc/sources.list
+            echo "deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ ${RELEASE_NAME}-updates main restricted universe multiverse" | sudo tee -a /etc/sources.list
             echo "deb [arch=amd64] http://security.ubuntu.com/ubuntu/ ${RELEASE_NAME}-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
             echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports ${RELEASE_NAME} main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
             echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports ${RELEASE_NAME}-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
@@ -251,61 +250,65 @@ jobs:
             cat ffmpeg-src/ffbuild/config.log
           fi
 
-      - name: Package and Upload Release Assets
+      - name: Package and Upload Release Assets (macOS/Linux)
+        if: runner.os != 'Windows'
         run: |
           INSTALL_DIR="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
           ASSET_DIR="${{ github.workspace }}/assets"
           mkdir -p "${ASSET_DIR}"
           ZIP_NAME="ffmpeg-${{ matrix.folder }}.zip"
+          EXE_NAME="ffmpeg"
 
-          # Determine executable name
-          if [[ "${{ matrix.target_os }}" == "mingw32" || "${{ matrix.target_os }}" == "win64" ]]; then
-            EXE_NAME="ffmpeg.exe"
+          # Strip the binary
+          if [[ -n "${{ matrix.cross_prefix }}" ]]; then
+            ${{ matrix.cross_prefix }}strip "${INSTALL_DIR}/bin/${EXE_NAME}"
           else
-            EXE_NAME="ffmpeg"
+            strip "${INSTALL_DIR}/bin/${EXE_NAME}"
           fi
 
-          if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
-            # Handle static windows-arm64 build
-            echo "Packaging statically built ffmpeg.exe for windows-arm64"
-            # The executable is in the bin directory
-            STATIC_EXE_PATH="${INSTALL_DIR}/bin/${EXE_NAME}"
-            if [[ -f "${STATIC_EXE_PATH}" ]]; then
-              strip "${STATIC_EXE_PATH}"
-              # Create zip from the single executable
-              cd "${INSTALL_DIR}/bin"
-              zip "${ASSET_DIR}/${ZIP_NAME}" "${EXE_NAME}"
-              cd -
-            else
-              echo "Error: ${EXE_NAME} not found in ${INSTALL_DIR}/bin/"
-              exit 1
-            fi
-          else
-            # Handle shared builds for all other platforms
-            echo "Packaging shared build for ${{ matrix.folder }}"
-            # Strip the main binary
-            if [[ -n "${{ matrix.cross_prefix }}" ]]; then
-              ${{ matrix.cross_prefix }}strip "${INSTALL_DIR}/bin/${EXE_NAME}"
-            else
-              strip "${INSTALL_DIR}/bin/${EXE_NAME}"
-            fi
-            # Create Zip archive from all files in bin
-            cd "${INSTALL_DIR}/bin"
-            zip "${ASSET_DIR}/${ZIP_NAME}" *
-            cd -
-          fi
+          # Create Zip archive
+          cd "${INSTALL_DIR}/bin"
+          zip "${ASSET_DIR}/${ZIP_NAME}" *
+          cd -
 
-          # Create checksum, which needs to be cross-platform
+          # Create checksum
           cd "${ASSET_DIR}"
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
-            # Using PowerShell for robust checksum generation on Windows
-            powershell -Command "Get-FileHash -Algorithm SHA256 '${ZIP_NAME}' | ForEach-Object { \$_.Hash.ToLower() + '  ' + (Split-Path -Leaf \$_.Path) } > '${ZIP_NAME}.sha256'"
-          else
-            shasum -a 256 "${ZIP_NAME}" > "${ZIP_NAME}.sha256"
-          fi
-          cat "${ZIP_NAME}.sha256" # Output checksum for verification
+          shasum -a 256 "${ZIP_NAME}" > "${ZIP_NAME}.sha256"
           cd -
 
           # Upload assets
           gh release upload ${{ env.RELEASE_TAG }} "${ASSET_DIR}/${ZIP_NAME}" "${ASSET_DIR}/${ZIP_NAME}.sha256" --clobber
 
+      - name: Package and Upload Release Assets (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $installDir = "${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
+          $assetDir = "${{ github.workspace }}/assets"
+          New-Item -ItemType Directory -Force -Path $assetDir
+          $zipName = "ffmpeg-${{ matrix.folder }}.zip"
+          $zipPath = Join-Path $assetDir $zipName
+          $checksumPath = "$zipPath.sha256"
+          $exeName = "ffmpeg.exe"
+
+          # Logic for static vs. shared builds on Windows
+          if ("${{ matrix.folder }}" -eq "windows-arm64") {
+            echo "Packaging statically built ffmpeg.exe for windows-arm64"
+            $exePath = Join-Path $installDir "bin" $exeName
+            if (-not (Test-Path $exePath)) {
+              echo "Error: ${exeName} not found in $($exePath)"
+              exit 1
+            }
+            strip $exePath
+            Compress-Archive -Path $exePath -DestinationPath $zipPath -Force
+          } else {
+            # This block is for potential future shared Windows builds (like x86_64)
+            echo "Packaging shared build for ${{ matrix.folder }}"
+            $binDir = Join-Path $installDir "bin"
+            strip (Join-Path $binDir $exeName)
+            Compress-Archive -Path (Join-Path $binDir "*") -DestinationPath $zipPath -Force
+          }
+
+          # Create checksum and upload
+          (Get-FileHash $zipPath -Algorithm SHA256).Hash.ToLower() + "  " + $zipName | Set-Content -Path $checksumPath
+          gh release upload ${{ env.RELEASE_TAG }} $zipPath, $checksumPath --clobber
