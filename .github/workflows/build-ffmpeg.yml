@@ -245,25 +245,36 @@ jobs:
         run: |
           INSTALL_DIR="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
           ASSET_DIR="${{ github.workspace }}/assets"
+          STAGING_DIR="${{ github.workspace }}/staging/${{ matrix.folder }}"
           mkdir -p "${ASSET_DIR}"
+          mkdir -p "${STAGING_DIR}"
           ZIP_NAME="ffmpeg-${{ matrix.folder }}.zip"
+          ZIP_PATH="${ASSET_DIR}/${ZIP_NAME}"
 
+          # Set executable name based on target OS
           if [[ "${{ matrix.target_os }}" == "mingw32" ]]; then
             EXE_NAME="ffmpeg.exe"
           else
             EXE_NAME="ffmpeg"
           fi
 
-          # Strip the binary
+          # Strip the main binary
           if [[ -n "${{ matrix.cross_prefix }}" ]]; then
             ${{ matrix.cross_prefix }}strip "${INSTALL_DIR}/bin/${EXE_NAME}"
           else
             strip "${INSTALL_DIR}/bin/${EXE_NAME}"
           fi
 
-          # Create Zip archive
-          cd "${INSTALL_DIR}/bin"
-          zip "${ASSET_DIR}/${ZIP_NAME}" *
+          echo "Packaging dynamically built binaries for ${{ matrix.folder }}"
+
+          # Copy all binaries (executable and shared libraries) to staging
+          # The -L flag dereferences symlinks, which is important for macOS frameworks
+          cp -L "${INSTALL_DIR}/bin"/* "${STAGING_DIR}/"
+          cp -L "${INSTALL_DIR}/lib"/* "${STAGING_DIR}/"
+
+          # Create Zip archive from the staging directory
+          cd "${STAGING_DIR}"
+          zip -r "${ZIP_PATH}" .
           cd -
 
           # Create checksum
@@ -272,7 +283,7 @@ jobs:
           cd -
 
           # Upload assets
-          gh release upload ${{ env.RELEASE_TAG }} "${ASSET_DIR}/${ZIP_NAME}" "${ASSET_DIR}/${ZIP_NAME}.sha256" --clobber --repo ${{ github.repository }}
+          gh release upload ${{ env.RELEASE_TAG }} "${ZIP_PATH}" "${ZIP_PATH}.sha256" --clobber --repo ${{ github.repository }}
 
       - name: Package and Upload Release Assets (Windows)
         if: runner.os == 'Windows'
