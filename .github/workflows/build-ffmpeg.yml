@@ -73,6 +73,7 @@ jobs:
             msystem: CLANG64
             install_deps: >-
               make
+              zip
               mingw-w64-clang-x86_64-toolchain
               mingw-w64-clang-x86_64-lld
               mingw-w64-clang-aarch64-pkg-config
