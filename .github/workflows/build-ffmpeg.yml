@@ -237,32 +237,23 @@ jobs:
       - name: Prepare assets for release
         shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash' }}
         run: |
-          echo "Preparing assets for ${{ matrix.folder }} on ${{ matrix.os }}"
           INSTALL_DIR="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
           RELEASE_DIR="${{ github.workspace }}/release_assets/${{ matrix.folder }}"
           mkdir -p "${RELEASE_DIR}"
 
-          # Determine executable name based on the OS
           if [[ "${{ runner.os }}" == "Windows" || "${{ matrix.target_os }}" == "mingw32" ]]; then
             EXE_NAME="ffmpeg.exe"
           else
             EXE_NAME="ffmpeg"
           fi
 
-          # Strip the binary
           if [[ -n "${{ matrix.cross_prefix }}" ]]; then
-            echo "Stripping with cross-prefix: ${{ matrix.cross_prefix }}strip"
             ${{ matrix.cross_prefix }}strip "${INSTALL_DIR}/bin/${EXE_NAME}"
           else
-            echo "Stripping with default strip"
             strip "${INSTALL_DIR}/bin/${EXE_NAME}"
           fi
           
-          # Copy all binaries to the release directory
           cp -r "${INSTALL_DIR}/bin/"* "${RELEASE_DIR}/"
-
-          echo "Contents of ${RELEASE_DIR} after asset preparation:"
-          ls -R "${RELEASE_DIR}"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
