@@ -28,7 +28,7 @@ jobs:
           # Delete release and associated tag, ignoring errors if it doesn't exist
           gh release delete ${{ env.RELEASE_TAG }} --yes --cleanup-tag || echo "Release ${{ env.RELEASE_TAG }} not found, proceeding to create it."
           # Create new release, which also creates the tag
-          gh release create ${{ env.RELEASE_TAG }} --generate-notes
+          gh release create ${{ env.RELEASE_TAG }} --notes "Supported platforms: windows-x86_64, linux-x86_64, linux-arm64, macos-x86_64, macos-arm64"
 
   build:
     needs: prepare-release
@@ -166,56 +166,37 @@ jobs:
             cat ffmpeg-src/ffbuild/config.log
           fi
 
-      - name: Prepare assets for release
+      - name: Package and Upload Release Assets
         run: |
-          echo "Preparing assets for ${{ matrix.folder }} on ${{ matrix.os }}"
           INSTALL_DIR="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
-          RELEASE_DIR="${{ github.workspace }}/release_assets/${{ matrix.folder }}"
-          mkdir -p "${RELEASE_DIR}"
+          ASSET_DIR="${{ github.workspace }}/assets"
+          mkdir -p "${ASSET_DIR}"
 
+          # Determine executable name
           if [[ "${{ matrix.target_os }}" == "mingw32" ]]; then
             EXE_NAME="ffmpeg.exe"
           else
             EXE_NAME="ffmpeg"
           fi
 
-          if [[ "${{ matrix.cross_prefix }}" != "" ]]; then
+          # Strip the binary
+          if [[ -n "${{ matrix.cross_prefix }}" ]]; then
             ${{ matrix.cross_prefix }}strip "${INSTALL_DIR}/bin/${EXE_NAME}"
           else
             strip "${INSTALL_DIR}/bin/${EXE_NAME}"
           fi
-          
-          cp -r "${INSTALL_DIR}/bin/"* "${RELEASE_DIR}/"
 
-          echo "Contents of ${RELEASE_DIR} after asset preparation:"
-          ls -R "${RELEASE_DIR}"
+          # Create Zip archive
+          ZIP_NAME="ffmpeg-${{ matrix.folder }}.zip"
+          cd "${INSTALL_DIR}/bin"
+          zip "${ASSET_DIR}/${ZIP_NAME}" *
+          cd -
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ffmpeg-${{ matrix.folder }}
-          path: ${{ github.workspace }}/release_assets/${{ matrix.folder }}/
+          # Create checksum
+          cd "${ASSET_DIR}"
+          shasum -a 256 "${ZIP_NAME}" > "${ZIP_NAME}.sha256"
+          cd -
 
-  package-release:
-    needs: build
-    runs-on: ubuntu-latest
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      RELEASE_TAG: ${{ github.event.inputs.release_tag }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+          # Upload assets
+          gh release upload ${{ env.RELEASE_TAG }} "${ASSET_DIR}/${ZIP_NAME}" "${ASSET_DIR}/${ZIP_NAME}.sha256" --clobber
 
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: release_assets
-
-      - name: Zip assets
-        run: |
-          cd release_assets
-          zip -r ffmpeg-binaries.zip .
-
-      - name: Upload release asset
-        run: |
-          gh release upload ${{ env.RELEASE_TAG }} release_assets/ffmpeg-binaries.zip --clobber
