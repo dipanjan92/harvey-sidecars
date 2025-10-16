@@ -43,12 +43,35 @@ jobs:
             cross_prefix: x86_64-w64-mingw32-
             target_os: mingw32
             extra_opts: "--extra-cflags=-I/usr/x86_64-w64-mingw32/include --extra-ldflags=-L/usr/x86_64-w64-mingw32/lib"
-          - folder: windows-arm64
-            os: ubuntu-latest
-            container: dockcross/windows-arm64
-            arch: aarch64
-            target_os: mingw32
-            extra_opts: "--enable-cross-compile --disable-asm --extra-cflags=-I/usr/xcc/aarch64-w64-mingw32-cross/include --extra-ldflags=-L/usr/xcc/aarch64-w64-mingw32-cross/lib"
+          - os: windows-latest
+            folder: windows-arm64
+            type: build
+            install_deps: >-
+              make
+              mingw-w64-clang-x86_64-toolchain
+              mingw-w64-clang-x86_64-lld
+              mingw-w64-clang-aarch64-pkg-config
+              mingw-w64-clang-aarch64-zlib
+              mingw-w64-clang-aarch64-libiconv
+            configure_opts: >-
+              --target-os=win64
+              --arch=aarch64
+              --cc=clang
+              --cxx=clang++
+              --ar=llvm-ar
+              --ranlib=llvm-ranlib
+              --enable-cross-compile
+              --disable-asm
+              --disable-gpl
+              --disable-nonfree
+              --disable-ffplay
+              --disable-ffprobe
+              --disable-doc
+              --enable-zlib
+              --enable-iconv
+              --disable-libmp3lame
+              --extra-cflags="-fuse-ld=lld"
+              --extra-cxxflags="-fuse-ld=lld"
           - folder: linux-x86_64
             os: ubuntu-latest
             arch: x86_64
@@ -108,10 +131,15 @@ jobs:
             echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports ${RELEASE_NAME}-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
             sudo apt-get update
             sudo apt-get install -y yasm nasm pkg-config gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu zlib1g-dev:arm64
-          elif [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
-            sudo apt-get update -y
-            sudo apt-get install -y yasm nasm pkg-config zlib1g-dev
           fi
+
+      - name: Setup MSYS2 environment (Windows)
+        if: runner.os == 'Windows' && matrix.type == 'build'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: ${{ matrix.folder == 'windows-arm64' && 'CLANGARM64' || 'MINGW64' }}
+          update: true
+          install: ${{ matrix.install_deps }}
 
       - name: Install build prerequisites (macOS)
         if: runner.os == 'macOS'
@@ -127,12 +155,9 @@ jobs:
       - name: Configure & build FFmpeg
         run: |
           if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
-            export PATH="/usr/xcc/aarch64-w64-mingw32-cross/bin:$PATH"
-            export AR=aarch64-w64-mingw32-ar
-            export RANLIB=aarch64-w64-mingw32-ranlib
-            export CC=aarch64-w64-mingw32-gcc
-            export CXX=aarch64-w64-mingw32-g++
-            export LD=aarch64-w64-mingw32-ld
+            export PATH="/usr/lib/llvm-mingw/bin:$PATH"
+            export AR=llvm-ar
+            export RANLIB=llvm-ranlib
           fi
 
           echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
@@ -166,6 +191,36 @@ jobs:
           echo "Running configure with matrix opts: ${CONFIGURE_OPTS[@]}"
           ./configure "${BASE_CONFIGURE_FLAGS[@]}" "${CONFIGURE_OPTS[@]}"
           
+          make -j${CPU_COUNT}
+          make install
+          cd ..
+
+      - name: Configure & build FFmpeg (Windows)
+        if: matrix.type == 'build' && runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          echo "Configuring and building FFmpeg for ${{ matrix.folder }} on ${{ matrix.os }}"
+          CPU_COUNT=$(nproc)
+          echo "Using $CPU_COUNT cores for make"
+
+          INSTALL_PREFIX="${{ github.workspace }}/ffmpeg/${{ matrix.folder }}"
+          mkdir -p "${INSTALL_PREFIX}"
+          cd ffmpeg-src
+
+          BASE_CONFIGURE_FLAGS=(
+            --prefix="${INSTALL_PREFIX}"
+            --disable-shared
+            --enable-static
+            --pkg-config-flags="--static"
+          )
+
+          echo "Running configure with matrix opts: ${{ matrix.configure_opts }}"
+          if ! ./configure "${BASE_CONFIGURE_FLAGS[@]}" ${{ matrix.configure_opts }}; then
+            echo "Configure failed. Dumping config.log"
+            cat ffbuild/config.log
+            exit 1
+          fi
+
           make -j${CPU_COUNT}
           make install
           cd ..
