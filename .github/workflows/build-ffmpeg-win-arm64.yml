@@ -108,5 +108,4 @@ jobs:
 
       - name: Upload to Release
         run: |
-          git config --global --add safe.directory ${{ github.workspace }}
-          gh release upload ${{ env.RELEASE_TAG }} ${{ github.workspace }}/release/ffmpeg-win-arm64-dynamic.zip --clobber
+          gh release upload ${{ env.RELEASE_TAG }} ${{ github.workspace }}/release/ffmpeg-win-arm64-dynamic.zip --clobber --repo ${{ github.repository }}
