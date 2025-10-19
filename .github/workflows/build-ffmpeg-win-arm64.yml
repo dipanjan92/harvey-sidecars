@@ -76,7 +76,7 @@ jobs:
           git clone --depth 1 --branch 3.5 https://bitbucket.org/multicoreware/x265_git.git x265
           mkdir -p x265/build/linux
           cd x265/build/linux
-          cmake -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/ffmpeg-wos-arm64-build/aarch64-w64-mingw32.cmake -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} ../../source
+          cmake -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/ffmpeg/aarch64-w64-mingw32.cmake -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} ../../source
           make -j$(nproc)
           make install
 
