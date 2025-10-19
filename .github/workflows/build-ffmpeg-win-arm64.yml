@@ -83,7 +83,6 @@ jobs:
             --target-os=mingw32 \
             --enable-shared \
             --disable-static \
-            --enable-sdl \
             --disable-gpl \
             --disable-nonfree \
             --disable-ffplay \
