@@ -43,11 +43,7 @@ jobs:
       INSTALL_PREFIX: ${{ github.workspace }}/local
 
     steps:
-      - name: Checkout dvhh/ffmpeg-wos-arm64-build
-        uses: actions/checkout@v4
-        with:
-          repository: dvhh/ffmpeg-wos-arm64-build
-          path: ffmpeg-wos-arm64-build
+
 
       - name: Install dependencies
         run: |
