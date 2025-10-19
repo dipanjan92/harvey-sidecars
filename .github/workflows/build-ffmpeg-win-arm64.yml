@@ -49,9 +49,6 @@ jobs:
           persist-credentials: true
           fetch-depth: 0
 
-      - name: Configure Git safe directory
-        run: git config --global --add safe.directory ${{ github.workspace }}
-
       - name: Install dependencies
         run: |
           apt-get update
@@ -111,4 +108,5 @@ jobs:
 
       - name: Upload to Release
         run: |
+          git config --global --add safe.directory ${{ github.workspace }}
           gh release upload ${{ env.RELEASE_TAG }} ${{ github.workspace }}/release/ffmpeg-win-arm64-dynamic.zip --clobber
