@@ -54,12 +54,18 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends cmake yasm nasm pkg-config git curl zip binutils-mingw-w64-x86-64
 
+      - name: Checkout SDL2
+        uses: actions/checkout@v4
+        with:
+          repository: libsdl-org/SDL
+          path: sdl
+          ref: SDL2
+
       - name: Build SDL2
         run: |
-          git clone --depth 1 --branch release-2.30.0 https://github.com/libsdl-org/SDL.git sdl
           mkdir -p sdl/build
           cd sdl/build
-          ../configure --host=aarch64-w64-mingw32 --prefix=${INSTALL_PREFIX}
+          ../sdl/configure --host=aarch64-w64-mingw32 --prefix=${INSTALL_PREFIX}
           make -j$(nproc)
           make install
 
