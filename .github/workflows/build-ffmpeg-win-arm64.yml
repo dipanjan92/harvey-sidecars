@@ -60,8 +60,10 @@ jobs:
       - name: Build SDL2
         run: |
           mkdir -p sdl/build
-          cd sdl/build
-          ../sdl/configure --host=aarch64-w64-mingw32 --prefix=${INSTALL_PREFIX}
+          cd sdl
+          mkdir build
+          cd build
+          ../configure --host=aarch64-w64-mingw32 --prefix=${INSTALL_PREFIX}
           make -j$(nproc)
           make install
 
