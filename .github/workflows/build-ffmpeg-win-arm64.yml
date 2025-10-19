@@ -91,6 +91,11 @@ jobs:
             --disable-libmp3lame \
             --disable-asm
 
+      - name: Install GitHub CLI
+        run: |
+          apt-get update
+          apt-get install -y gh
+
       - name: Package Binaries
         run: |
           mkdir -p ${{ github.workspace }}/release
