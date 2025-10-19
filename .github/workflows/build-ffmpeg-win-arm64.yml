@@ -1,0 +1,120 @@
+name: Build FFmpeg Binaries (Win ARM64 Dynamic)
+
+permissions:
+  contents: write
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'The release tag to use for the FFmpeg build (e.g., n5.1.4)'
+        required: true
+
+jobs:
+  prepare-release:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      RELEASE_TAG: ${{ github.event.inputs.release_tag }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Handle Git Tag and Release
+        run: |
+          # Delete release and associated tag, ignoring errors if it doesn't exist
+          gh release delete ${{ env.RELEASE_TAG }} --yes --cleanup-tag || echo "Release ${{ env.RELEASE_TAG }} not found, proceeding to create it."
+          # Create new release, which also creates the tag
+          gh release create ${{ env.RELEASE_TAG }} --title "Harvey Sidecars ${{ env.RELEASE_TAG }}" --notes "Supported platforms: windows-x86_64, windows-arm64, linux-x86_64, linux-arm64, macos-x86_64, macos-arm64"
+
+  build:
+    needs: prepare-release
+    runs-on: ubuntu-latest
+    container:
+      image: mstorsjo/llvm-mingw:20241001
+    
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      RELEASE_TAG: ${{ github.event.inputs.release_tag }}
+      FFMPEG_TAG: "n5.1.4"
+      INSTALL_PREFIX: ${{ github.workspace }}/local
+
+    steps:
+      - name: Checkout dvhh/ffmpeg-wos-arm64-build
+        uses: actions/checkout@v4
+        with:
+          repository: dvhh/ffmpeg-wos-arm64-build
+          path: ffmpeg-wos-arm64-build
+
+      - name: Install dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends cmake yasm nasm pkg-config git curl zip binutils-mingw-w64-x86-64
+
+      - name: Build SDL2
+        run: |
+          git clone --depth 1 --branch release-2.30.0 https://github.com/libsdl-org/SDL.git sdl
+          mkdir -p sdl/build
+          cd sdl/build
+          ../configure --host=aarch64-w64-mingw32 --prefix=${INSTALL_PREFIX}
+          make -j$(nproc)
+          make install
+
+      - name: Build x264
+        run: |
+          git clone --depth 1 https://code.videolan.org/videolan/x264.git x264
+          cd x264
+          ./configure --host=aarch64-w64-mingw32 --prefix=${INSTALL_PREFIX} --enable-shared --disable-static --cross-prefix=aarch64-w64-mingw32-
+          make -j$(nproc)
+          make install
+
+      - name: Build x265
+        run: |
+          git clone --depth 1 --branch 3.5 https://bitbucket.org/multicoreware/x265_git.git x265
+          mkdir -p x265/build/linux
+          cd x265/build/linux
+          cmake -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/ffmpeg-wos-arm64-build/aarch64-w64-mingw32.cmake -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} ../../source
+          make -j$(nproc)
+          make install
+
+      - name: Clone FFmpeg
+        run: git clone --depth 1 --branch ${{ env.FFMPEG_TAG }} https://git.ffmpeg.org/ffmpeg.git ffmpeg-src
+
+      - name: Configure and Build FFmpeg
+        run: |
+          cd ffmpeg-src
+          export PKG_CONFIG_PATH=${INSTALL_PREFIX}/lib/pkgconfig
+          ./configure \
+            --prefix=${INSTALL_PREFIX} \
+            --cross-prefix=aarch64-w64-mingw32- \
+            --arch=aarch64 \
+            --target-os=mingw32 \
+            --enable-shared \
+            --disable-static \
+            --enable-libx264 \
+            --enable-libx265 \
+            --enable-sdl \
+            --disable-gpl \
+            --disable-nonfree \
+            --disable-ffplay \
+            --disable-ffprobe \
+            --disable-doc \
+            --enable-zlib \
+            --enable-iconv \
+            --disable-libmp3lame \
+            --disable-asm
+          make -j$(nproc)
+          make install
+
+      - name: Package Binaries
+        run: |
+          mkdir -p ${{ github.workspace }}/release
+          cd ${INSTALL_PREFIX}/bin
+          zip -r ${{ github.workspace }}/release/ffmpeg-win-arm64-dynamic.zip .
+
+      - name: Upload to Release
+        run: |
+          gh release upload ${{ env.RELEASE_TAG }} ${{ github.workspace }}/release/ffmpeg-win-arm64-dynamic.zip --clobber
