@@ -48,7 +48,7 @@ jobs:
       - name: Install dependencies
         run: |
           apt-get update
-          apt-get install -y --no-install-recommends cmake yasm nasm pkg-config git curl zip binutils-mingw-w64-x86-64 zlib1g-dev libz-mingw-w64-dev
+          apt-get install -y --no-install-recommends cmake yasm nasm pkg-config git curl zip binutils-mingw-w64-x86-64
 
       - name: Checkout SDL2
         uses: actions/checkout@v4
@@ -88,7 +88,6 @@ jobs:
             --disable-ffplay \
             --disable-ffprobe \
             --disable-doc \
-            --enable-zlib \
             --disable-libmp3lame \
             --disable-asm
 
