@@ -65,26 +65,6 @@ jobs:
           make -j$(nproc)
           make install
 
-      - name: Build x264
-        run: |
-          git clone --depth 1 https://code.videolan.org/videolan/x264.git x264
-          cd x264
-          ./configure --host=aarch64-w64-mingw32 --prefix=${INSTALL_PREFIX} --enable-shared --disable-static --cross-prefix=aarch64-w64-mingw32-
-          make -j$(nproc)
-          make install
-
-      - name: Build x265
-        run: |
-          git clone --depth 1 --branch 3.5 https://bitbucket.org/multicoreware/x265_git.git x265
-          mkdir -p x265/build/linux
-          cd x265/build/linux
-          cmake -DCMAKE_TOOLCHAIN_FILE=../../../ffmpeg/aarch64-w64-mingw32.cmake -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} ../../source
-          make -j$(nproc)
-          make install
-
-      - name: Clone FFmpeg
-        run: git clone --depth 1 --branch ${{ env.FFMPEG_TAG }} https://git.ffmpeg.org/ffmpeg.git ffmpeg-src
-
       - name: Configure and Build FFmpeg
         run: |
           cd ffmpeg-src
@@ -96,8 +76,6 @@ jobs:
             --target-os=mingw32 \
             --enable-shared \
             --disable-static \
-            --enable-libx264 \
-            --enable-libx265 \
             --enable-sdl \
             --disable-gpl \
             --disable-nonfree \
