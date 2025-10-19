@@ -67,6 +67,7 @@ jobs:
 
       - name: Configure and Build FFmpeg
         run: |
+          ls -l
           cd ffmpeg-src
           export PKG_CONFIG_PATH=${INSTALL_PREFIX}/lib/pkgconfig
           ./configure \
@@ -86,8 +87,6 @@ jobs:
             --enable-iconv \
             --disable-libmp3lame \
             --disable-asm
-          make -j$(nproc)
-          make install
 
       - name: Package Binaries
         run: |
