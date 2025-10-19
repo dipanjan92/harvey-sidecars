@@ -65,10 +65,16 @@ jobs:
           make -j$(nproc)
           make install
 
+      - name: Checkout FFmpeg
+        uses: actions/checkout@v4
+        with:
+          repository: FFmpeg/FFmpeg
+          path: ffmpeg
+          ref: ${{ env.FFMPEG_TAG }}
+
       - name: Configure and Build FFmpeg
         run: |
-          ls -l
-          cd ffmpeg-src
+          cd ffmpeg
           export PKG_CONFIG_PATH=${INSTALL_PREFIX}/lib/pkgconfig
           ./configure \
             --prefix=${INSTALL_PREFIX} \
