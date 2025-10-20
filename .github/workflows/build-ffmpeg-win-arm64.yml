@@ -104,10 +104,14 @@ jobs:
         run: |
           mkdir -p ${{ github.workspace }}/release
           cd ${INSTALL_PREFIX}/bin
-          zip -r ${{ github.workspace }}/release/ffmpeg-win-arm64-dynamic.zip .
+          zip -r ${{ github.workspace }}/release/ffmpeg-win-arm64.zip .
           cd ${{ github.workspace }}/release
-          shasum -a 256 ffmpeg-win-arm64-dynamic.zip > ffmpeg-win-arm64-dynamic.zip.sha256
+          shasum -a 256 ffmpeg-win-arm64.zip > ffmpeg-win-arm64.zip.sha256
 
       - name: Upload to Release
         run: |
-          gh release upload ${{ env.RELEASE_TAG }} ${{ github.workspace }}/release/ffmpeg-win-arm64-dynamic.zip ${{ github.workspace }}/release/ffmpeg-win-arm64-dynamic.zip.sha256 --clobber --repo ${{ github.repository }}
+          gh release upload ${{ env.RELEASE_TAG }} ${{ github.workspace }}/release/ffmpeg-win-arm64.zip ${{ github.workspace }}/release/ffmpeg-win-arm64.zip.sha256 --clobber --repo ${{ github.repository }}
+
+      - name: Publish Release
+        run: |
+          gh release edit ${{ env.RELEASE_TAG }} --draft=false
