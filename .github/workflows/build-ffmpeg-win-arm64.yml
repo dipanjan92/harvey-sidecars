@@ -95,8 +95,11 @@ jobs:
             --disable-libmp3lame \
             --disable-asm
 
-      - name: Install GitHub CLI
+      - name: Install Latest GitHub CLI
         run: |
+          curl -fsSL https://cli.github.com/packages/githubcli-archive-key.asc | dd of=/usr/share/keyrings/githubcli-archive-key.asc
+          chmod go+r /usr/share/keyrings/githubcli-archive-key.asc
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-key.asc] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null
           apt-get update
           apt-get install -y gh
 
