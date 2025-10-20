@@ -103,7 +103,7 @@ jobs:
       - name: Package Binaries and Create Checksum
         run: |
           mkdir -p ${{ github.workspace }}/release
-          cd ${{ github.workspace }}/local/bin
+          cd ${INSTALL_PREFIX}/bin
           zip -r ${{ github.workspace }}/release/ffmpeg-win-arm64-dynamic.zip .
           cd ${{ github.workspace }}/release
           shasum -a 256 ffmpeg-win-arm64-dynamic.zip > ffmpeg-win-arm64-dynamic.zip.sha256
