@@ -117,4 +117,4 @@ jobs:
 
       - name: Publish Release
         run: |
-          gh release edit ${{ env.RELEASE_TAG }} --draft=false
+          gh release edit ${{ env.RELEASE_TAG }} --draft=false --repo ${{ github.repository }}
