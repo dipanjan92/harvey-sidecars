@@ -100,12 +100,14 @@ jobs:
           apt-get update
           apt-get install -y gh
 
-      - name: Package Binaries
+      - name: Package Binaries and Create Checksum
         run: |
           mkdir -p ${{ github.workspace }}/release
-          cd ${INSTALL_PREFIX}/bin
+          cd ${{ github.workspace }}/local/bin
           zip -r ${{ github.workspace }}/release/ffmpeg-win-arm64-dynamic.zip .
+          cd ${{ github.workspace }}/release
+          shasum -a 256 ffmpeg-win-arm64-dynamic.zip > ffmpeg-win-arm64-dynamic.zip.sha256
 
       - name: Upload to Release
         run: |
-          gh release upload ${{ env.RELEASE_TAG }} ${{ github.workspace }}/release/ffmpeg-win-arm64-dynamic.zip --clobber --repo ${{ github.repository }}
+          gh release upload ${{ env.RELEASE_TAG }} ${{ github.workspace }}/release/ffmpeg-win-arm64-dynamic.zip ${{ github.workspace }}/release/ffmpeg-win-arm64-dynamic.zip.sha256 --clobber --repo ${{ github.repository }}
