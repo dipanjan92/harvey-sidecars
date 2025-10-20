@@ -52,7 +52,7 @@ jobs:
       - name: Install dependencies
         run: |
           apt-get update
-          apt-get install -y --no-install-recommends cmake yasm nasm pkg-config git curl zip binutils-mingw-w64-x86-64
+          apt-get install -y --no-install-recommends cmake yasm nasm pkg-config git curl zip binutils-mingw-w64-x86-64 gnupg
 
       - name: Checkout SDL2
         uses: actions/checkout@v4
