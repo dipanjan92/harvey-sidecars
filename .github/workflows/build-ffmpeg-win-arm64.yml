@@ -94,6 +94,8 @@ jobs:
             --disable-doc \
             --disable-libmp3lame \
             --disable-asm
+          make -j$(nproc)
+          make install
 
       - name: Install Latest GitHub CLI
         run: |
