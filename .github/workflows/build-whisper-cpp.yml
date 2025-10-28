@@ -201,17 +201,13 @@ jobs:
           rm -rf build
           mkdir build && cd build
           cmake .. -DCMAKE_BUILD_TYPE=Release \
+                   -DCMAKE_SYSTEM_NAME=Windows \
                    -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/SDL2-install" \
                    -DSDL_STATIC=ON \
                    -DSDL_SHARED=OFF \
                    ${{ matrix.cmake_opts }}
-          if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
-            make -j$(nproc)
-            make install
-          else
-            cmake --build . --config Release
-            cmake --install . --config Release
-          fi
+          cmake --build . --config Release
+          cmake --install . --config Release
           echo "SDL2_DIR=${{ github.workspace }}/SDL2-install" >> $GITHUB_ENV
           cd ../..
 
