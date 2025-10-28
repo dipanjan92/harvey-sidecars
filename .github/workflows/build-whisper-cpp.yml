@@ -109,6 +109,7 @@ jobs:
             cmake
             mingw-w64-clang-aarch64-toolchain
             mingw-w64-clang-aarch64-pkg-config
+            mingw-w64-clang-aarch64-openblas
             mingw-w64-clang-aarch64-zlib
             mingw-w64-clang-aarch64-libiconv
             zip
@@ -124,6 +125,7 @@ jobs:
             cmake
             mingw-w64-clang-x86_64-toolchain
             mingw-w64-clang-x86_64-pkg-config
+            mingw-w64-clang-x86_64-openblas
             mingw-w64-clang-x86_64-zlib
             mingw-w64-clang-x86_64-libiconv
             zip
@@ -231,7 +233,7 @@ jobs:
           mkdir -p "${INSTALL_PREFIX}"
 
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            CMAKE_COMMON_FLAGS="-DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON -DBUILD_EXAMPLES=OFF -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX}"
+            CMAKE_COMMON_FLAGS="-DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON -DWHISPER_OPENBLAS=ON -DBUILD_EXAMPLES=OFF -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX}"
             if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
               cmake .. ${CMAKE_COMMON_FLAGS} -G "Unix Makefiles" -DCMAKE_CXX_STANDARD=17 -DCMAKE_CXX_STANDARD_REQUIRED=ON -DCMAKE_CXX_FLAGS="-std=c++17" -DCMAKE_PREFIX_PATH=${{ env.SDL2_DIR }} -DCMAKE_EXE_LINKER_FLAGS="-static -static-libgcc -static-libstdc++ -luser32 -lgdi32 -lwinmm -limm32 -lole32 -loleaut32 -lversion -luuid -lsetupapi -lksuser -lshell32"
               make -j$(nproc)
