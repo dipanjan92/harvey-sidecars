@@ -210,11 +210,16 @@ jobs:
           echo "SDL2_DIR=${{ github.workspace }}/SDL2-install" >> $GITHUB_ENV
           cd ../..
 
+      - name: List installed SDL2 files (Debug)
+        if: runner.os == 'Windows' && matrix.folder == 'windows-arm64'
+        run: |
+          echo "Listing contents of ${{ github.workspace }}/SDL2-install:"
+          ls -R "${{ github.workspace }}/SDL2-install" || true
+
       - name: Clone whisper.cpp
         run: git clone --depth 1 --branch v1.6.2 https://github.com/ggml-org/whisper.cpp.git whisper.cpp
 
       - name: Build whisper-cpp
-        shell: msys2 {0}
         run: |
           rm -rf whisper.cpp/build
           mkdir -p whisper.cpp/build
