@@ -192,7 +192,7 @@ jobs:
 
       - name: Install prerequisites (Windows)
         if: runner.os == 'Windows'
-        shell: bash
+        shell: msys2 {0}
         run: |
           SDL2_VERSION="2.30.5"
           echo "Building SDL2 from source for ${{ matrix.folder }}"...
@@ -224,25 +224,34 @@ jobs:
       - name: Clone whisper.cpp
         run: git clone --depth 1 --branch v1.6.2 https://github.com/ggml-org/whisper.cpp.git whisper.cpp
 
-      - name: Build whisper-cpp
+      - name: Build whisper-cpp (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
         run: |
           rm -rf whisper.cpp/build
           mkdir -p whisper.cpp/build
           cd whisper.cpp/build
           INSTALL_PREFIX="${{ github.workspace }}/whisper-cpp-install/${{ matrix.folder }}"
           mkdir -p "${INSTALL_PREFIX}"
+          CMAKE_COMMON_FLAGS="-DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON -DWHISPER_OPENBLAS=ON -DBUILD_EXAMPLES=OFF -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX}"
+          if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
+            cmake .. ${CMAKE_COMMON_FLAGS} -G "Unix Makefiles" -DCMAKE_CXX_STANDARD=17 -DCMAKE_CXX_STANDARD_REQUIRED=ON -DCMAKE_CXX_FLAGS="-std=c++17" -DCMAKE_PREFIX_PATH=${{ env.SDL2_DIR }} -DCMAKE_EXE_LINKER_FLAGS="-static -static-libgcc -static-libstdc++ -luser32 -lgdi32 -lwinmm -limm32 -lole32 -loleaut32 -lversion -luuid -lsetupapi -lksuser -lshell32"
+            make -j$(nproc)
+            make install
+          else # For windows-x86_64 (MinGW/Clang)
+            cmake .. ${CMAKE_COMMON_FLAGS} -G "Unix Makefiles" -DCMAKE_CXX_STANDARD=17 -DCMAKE_CXX_STANDARD_REQUIRED=ON -DCMAKE_CXX_FLAGS="-std=c++17" -DCMAKE_PREFIX_PATH=${{ env.SDL2_DIR }} -DCMAKE_EXE_LINKER_FLAGS="-static -static-libgcc -static-libstdc++ -luser32 -lgdi32 -lwinmm -limm32 -lole32 -loleaut32 -lversion -luuid -lsetupapi -lksuser -lshell32"
+            cmake --build . --config Release --target main --target stream
+          fi
 
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
-            CMAKE_COMMON_FLAGS="-DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON -DWHISPER_OPENBLAS=ON -DBUILD_EXAMPLES=OFF -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX}"
-            if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
-              cmake .. ${CMAKE_COMMON_FLAGS} -G "Unix Makefiles" -DCMAKE_CXX_STANDARD=17 -DCMAKE_CXX_STANDARD_REQUIRED=ON -DCMAKE_CXX_FLAGS="-std=c++17" -DCMAKE_PREFIX_PATH=${{ env.SDL2_DIR }} -DCMAKE_EXE_LINKER_FLAGS="-static -static-libgcc -static-libstdc++ -luser32 -lgdi32 -lwinmm -limm32 -lole32 -loleaut32 -lversion -luuid -lsetupapi -lksuser -lshell32"
-              make -j$(nproc)
-              make install
-            else # For windows-x86_64 (MinGW/Clang)
-              cmake .. ${CMAKE_COMMON_FLAGS} -G "Unix Makefiles" -DCMAKE_CXX_STANDARD=17 -DCMAKE_CXX_STANDARD_REQUIRED=ON -DCMAKE_CXX_FLAGS="-std=c++17" -DCMAKE_PREFIX_PATH=${{ env.SDL2_DIR }} -DCMAKE_EXE_LINKER_FLAGS="-static -static-libgcc -static-libstdc++ -luser32 -lgdi32 -lwinmm -limm32 -lole32 -loleaut32 -lversion -luuid -lsetupapi -lksuser -lshell32"
-              cmake --build . --config Release --target main --target stream
-            fi
-          elif [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
+      - name: Build whisper-cpp (macOS/Linux)
+        if: runner.os != 'Windows'
+        run: |
+          rm -rf whisper.cpp/build
+          mkdir -p whisper.cpp/build
+          cd whisper.cpp/build
+          INSTALL_PREFIX="${{ github.workspace }}/whisper-cpp-install/${{ matrix.folder }}"
+          mkdir -p "${INSTALL_PREFIX}"
+          if [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
             cmake .. -DCMAKE_BUILD_TYPE=Release \
                      -DBUILD_SHARED_LIBS=OFF \
                      -DWHISPER_SDL2=ON \
