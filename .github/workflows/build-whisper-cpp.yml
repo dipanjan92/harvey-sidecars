@@ -194,34 +194,43 @@ jobs:
         if: runner.os == 'Windows'
         shell: msys2 {0}
         run: |
+          set -e
           SDL2_VERSION="2.30.5"
-          echo "Building SDL2 from source for ${{ matrix.folder }}"...
+          echo "Building SDL2 from source for ${{ matrix.folder }}"
+
+          # Download and extract SDL2 source
           curl -sL "https://github.com/libsdl-org/SDL/releases/download/release-${SDL2_VERSION}/SDL2-${SDL2_VERSION}.tar.gz" | tar xz
           cd SDL2-${SDL2_VERSION}
           rm -rf build
           mkdir build && cd build
+
+          # Prepare platform-specific CMake options
+          PLATFORM_CMAKE_OPTS=""
+          if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
+            # Create a toolchain file for ARM64 cross-compilation
+            echo "set(CMAKE_SYSTEM_NAME Windows)" > ../arm64-toolchain.cmake
+            echo "set(CMAKE_SYSTEM_PROCESSOR ARM64)" >> ../arm64-toolchain.cmake
+            echo "set(CMAKE_C_COMPILER clang)" >> ../arm64-toolchain.cmake
+            echo "set(CMAKE_CXX_COMPILER clang++)" >> ../arm64-toolchain.cmake
+            PLATFORM_CMAKE_OPTS="-DCMAKE_TOOLCHAIN_FILE=../arm64-toolchain.cmake"
+          else
+            # Force CMake to use the correct toolchain for native Windows build
+            PLATFORM_CMAKE_OPTS="-DCMAKE_SYSTEM_NAME=Windows"
+          fi
+
+          # Configure, build, and install SDL2
           cmake .. -DCMAKE_BUILD_TYPE=Release \
                    -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/SDL2-install" \
                    -DSDL_STATIC=ON \
                    -DSDL_SHARED=OFF \
+                   ${PLATFORM_CMAKE_OPTS} \
                    ${{ matrix.cmake_opts }}
-          if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
-            cat <<EOF > ../arm64-toolchain.cmake
-            set(CMAKE_SYSTEM_NAME Windows)
-            set(CMAKE_SYSTEM_PROCESSOR ARM64)
-            set(CMAKE_C_COMPILER clang)
-            set(CMAKE_CXX_COMPILER clang++)
-            EOF
-            cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=../arm64-toolchain.cmake -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/SDL2-install" -DSDL_STATIC=ON -DSDL_SHARED=OFF ${{ matrix.cmake_opts }}
-            make -j$(nproc)
-            make install
-          else
-            cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_SYSTEM_NAME=Windows -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/SDL2-install" -DSDL_STATIC=ON -DSDL_SHARED=OFF ${{ matrix.cmake_opts }}
-            make -j$(nproc)
-            make install
-          fi
+
+          make -j$(nproc)
+          make install
+
+          # Set environment variable for whisper.cpp build
           echo "SDL2_DIR=${{ github.workspace }}/SDL2-install" >> $GITHUB_ENV
-          cd ../..
 
       - name: List installed SDL2 files (Debug)
         if: runner.os == 'Windows' && matrix.folder == 'windows-arm64'
