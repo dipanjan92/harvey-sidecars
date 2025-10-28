@@ -77,10 +77,10 @@ jobs:
             cmake_opts: "-DCMAKE_OSX_ARCHITECTURES=arm64"
           - os: windows-latest
             folder: windows-x86_64
-            cmake_opts: "-G \"MinGW Makefiles\""
+            cmake_opts: "-G \"Ninja\""
           - os: windows-latest
             folder: windows-arm64
-            cmake_opts: "-G \"MinGW Makefiles\""
+            cmake_opts: "-G \"Ninja\""
           - os: ubuntu-latest
             folder: linux-x86_64
             cmake_opts: ""
@@ -109,6 +109,7 @@ jobs:
             cmake
             mingw-w64-clang-aarch64-toolchain
             mingw-w64-clang-aarch64-pkg-config
+            ninja
             mingw-w64-clang-aarch64-openblas
             mingw-w64-clang-aarch64-zlib
             mingw-w64-clang-aarch64-libiconv
@@ -125,6 +126,7 @@ jobs:
             cmake
             mingw-w64-clang-x86_64-toolchain
             mingw-w64-clang-x86_64-pkg-config
+            ninja
             mingw-w64-clang-x86_64-openblas
             mingw-w64-clang-x86_64-zlib
             mingw-w64-clang-x86_64-libiconv
