@@ -199,23 +199,24 @@ jobs:
           curl -sL "https://github.com/libsdl-org/SDL/releases/download/release-${SDL2_VERSION}/SDL2-${SDL2_VERSION}.tar.gz" | tar xz
           cd SDL2-${SDL2_VERSION}
 
-          INSTALL_PREFIX="${{ github.workspace }}/SDL2-install"
+          INSTALL_PREFIX_WIN="${{ github.workspace }}/SDL2-install"
+          INSTALL_PREFIX_UNIX="$(cygpath -u "${INSTALL_PREFIX_WIN}")"
           HOST_ARCH=""
           if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
             HOST_ARCH="--host=aarch64-w64-mingw32"
-            export CC=clang
-            export CXX=clang++
+            export CC=aarch64-w64-mingw32-clang
+            export CXX=aarch64-w64-mingw32-clang++
           fi
 
           ./configure ${HOST_ARCH} \
-            --prefix=${INSTALL_PREFIX} \
+            --prefix="${INSTALL_PREFIX_UNIX}" \
             --enable-static \
             --disable-shared
 
           make -j$(nproc)
           make install
 
-          echo "SDL2_DIR=${INSTALL_PREFIX}" >> $GITHUB_ENV
+          echo "SDL2_DIR=${INSTALL_PREFIX_WIN}" >> $GITHUB_ENV
           cd ../..
 
       - name: List installed SDL2 files (Debug)
