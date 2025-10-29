@@ -207,15 +207,15 @@ jobs:
           # Prepare platform-specific CMake options
           PLATFORM_CMAKE_OPTS=""
           if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
-            # Create a toolchain file for ARM64 cross-compilation
+            # Create a toolchain file for ARM64 cross-compilation with correct compiler names
             echo "set(CMAKE_SYSTEM_NAME Windows)" > ../arm64-toolchain.cmake
             echo "set(CMAKE_SYSTEM_PROCESSOR ARM64)" >> ../arm64-toolchain.cmake
-            echo "set(CMAKE_C_COMPILER clang)" >> ../arm64-toolchain.cmake
-            echo "set(CMAKE_CXX_COMPILER clang++)" >> ../arm64-toolchain.cmake
+            echo "set(CMAKE_C_COMPILER aarch64-w64-mingw32-clang)" >> ../arm64-toolchain.cmake
+            echo "set(CMAKE_CXX_COMPILER aarch64-w64-mingw32-clang++)" >> ../arm64-toolchain.cmake
             PLATFORM_CMAKE_OPTS="-DCMAKE_TOOLCHAIN_FILE=../arm64-toolchain.cmake"
           else
-            # Force CMake to use the correct toolchain for native Windows build
-            PLATFORM_CMAKE_OPTS="-DCMAKE_SYSTEM_NAME=Windows"
+            # For native Windows build, disable tests to avoid build errors
+            PLATFORM_CMAKE_OPTS="-DCMAKE_SYSTEM_NAME=Windows -DSDL_TESTS=OFF"
           fi
 
           # Configure, build, and install SDL2
