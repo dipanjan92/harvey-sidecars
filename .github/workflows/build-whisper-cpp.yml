@@ -77,10 +77,10 @@ jobs:
             cmake_opts: "-DCMAKE_OSX_ARCHITECTURES=arm64"
           - os: windows-latest
             folder: windows-x86_64
-            cmake_opts: "-G \"Unix Makefiles\""
+            cmake_opts: ""
           - os: windows-latest
             folder: windows-arm64
-            cmake_opts: "-G \"Unix Makefiles\""
+            cmake_opts: ""
           - os: ubuntu-latest
             folder: linux-x86_64
             cmake_opts: ""
@@ -214,9 +214,9 @@ jobs:
             CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_SYSTEM_NAME=Windows"
           fi
 
-          eval cmake .. ${CMAKE_ARGS}
-          make -j$(nproc)
-          make install
+          cmake .. ${CMAKE_ARGS}
+          cmake --build . --config Release --parallel
+          cmake --build . --config Release --target install
 
           echo "SDL2_DIR=${{ github.workspace }}/SDL2-install" >> $GITHUB_ENV
           cd ../..
@@ -299,11 +299,14 @@ jobs:
                      -DCMAKE_PREFIX_PATH="${{ env.SDL2_DIR }}" \
                      -DCMAKE_EXE_LINKER_FLAGS="-static"
             make -j$(nproc) main stream
+            make install
+            mkdir -p "${INSTALL_PREFIX}/bin/"
             cp main stream "${INSTALL_PREFIX}/bin/"
           else # For macOS
             cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" ${{ matrix.cmake_opts }}
             cmake --build . --config Release --target main --target stream
             cmake --build . --config Release --target install
+            mkdir -p "${INSTALL_PREFIX}/bin/"
             cp main stream "${INSTALL_PREFIX}/bin/"
           fi
 
@@ -318,8 +321,8 @@ jobs:
           mkdir -p "${INSTALL_PREFIX}"
           CMAKE_COMMON_FLAGS="-DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON -DWHISPER_OPENBLAS=ON -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX}"
           cmake .. ${CMAKE_COMMON_FLAGS} ${{ matrix.cmake_opts }} -DCMAKE_PREFIX_PATH=${{ env.SDL2_DIR }} -DCMAKE_EXE_LINKER_FLAGS="-static -static-libgcc -static-libstdc++ -luser32 -lgdi32 -lwinmm -limm32 -lole32 -loleaut32 -lversion -luuid -lsetupapi -lksuser -lshell32"
-          make -j$(nproc) main stream
-          make install
+          cmake --build . --config Release --target main --target stream --parallel
+          cmake --build . --config Release --target install
 
       - name: List installed whisper-cpp files (Debug)
         run: |
