@@ -201,20 +201,22 @@ jobs:
           rm -rf build
           mkdir build && cd build
 
-          CMAKE_ARGS="-DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/SDL2-install -DSDL_STATIC=ON -DSDL_SHARED=OFF"
+          CMAKE_ARGS="-G \"Unix Makefiles\" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/SDL2-install -DSDL_STATIC=ON -DSDL_SHARED=OFF"
+
           if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
             echo "set(CMAKE_SYSTEM_NAME Windows)" > toolchain.cmake
             echo "set(CMAKE_SYSTEM_PROCESSOR ARM64)" >> toolchain.cmake
             echo "set(CMAKE_C_COMPILER clang)" >> toolchain.cmake
             echo "set(CMAKE_CXX_COMPILER clang++)" >> toolchain.cmake
             CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_TOOLCHAIN_FILE=./toolchain.cmake"
+            cmake .. ${CMAKE_ARGS}
           else
             CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_SYSTEM_NAME=Windows"
+            cmake .. ${CMAKE_ARGS}
           fi
 
-          cmake .. ${CMAKE_ARGS}
-          cmake --build . --config Release --parallel
-          cmake --build . --config Release --target install
+          make -j$(nproc)
+          make install
 
           echo "SDL2_DIR=${{ github.workspace }}/SDL2-install" >> $GITHUB_ENV
           cd ../..
