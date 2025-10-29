@@ -214,7 +214,7 @@ jobs:
             CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_SYSTEM_NAME=Windows"
           fi
 
-          cmake .. ${CMAKE_ARGS}
+          eval cmake .. ${CMAKE_ARGS}
           make -j$(nproc)
           make install
 
@@ -299,11 +299,12 @@ jobs:
                      -DCMAKE_PREFIX_PATH="${{ env.SDL2_DIR }}" \
                      -DCMAKE_EXE_LINKER_FLAGS="-static"
             make -j$(nproc) main stream
-            make install
+            cp main stream "${INSTALL_PREFIX}/bin/"
           else # For macOS
             cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" ${{ matrix.cmake_opts }}
             cmake --build . --config Release --target main --target stream
             cmake --build . --config Release --target install
+            cp main stream "${INSTALL_PREFIX}/bin/"
           fi
 
       - name: Build whisper-cpp (Windows)
