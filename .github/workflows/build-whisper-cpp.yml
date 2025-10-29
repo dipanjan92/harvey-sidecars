@@ -210,6 +210,10 @@ jobs:
           curl -sL "https://github.com/libsdl-org/SDL/releases/download/release-${SDL2_VERSION}/SDL2-${SDL2_VERSION}.tar.gz" | tar xz
           cd SDL2-${SDL2_VERSION}
 
+          # Explicitly set the compilers to avoid auto-detection issues
+          export CC=clang
+          export CXX=clang++
+
           # Configure, build, and install SDL2 using Autotools
           ./configure --host=${HOST_ARCH} --prefix=${INSTALL_PREFIX} --enable-static --disable-shared
           make -j$(nproc)
@@ -266,31 +270,13 @@ jobs:
         if: runner.os == 'Windows'
         shell: msys2 {0}
         run: |
-          set -e
-          TOOLCHAIN_FILE=""
-          if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
-            TOOLCHAIN_FILE="${{ github.workspace }}/.github/toolchains/aarch64-w64-mingw32.cmake"
-          else
-            TOOLCHAIN_FILE="${{ github.workspace }}/.github/toolchains/x86_64-w64-mingw32.cmake"
-          fi
-
           rm -rf whisper.cpp/build
           mkdir -p whisper.cpp/build
           cd whisper.cpp/build
-
           INSTALL_PREFIX="${{ github.workspace }}/whisper-cpp-install/${{ matrix.folder }}"
           mkdir -p "${INSTALL_PREFIX}"
-
-          cmake .. -DCMAKE_TOOLCHAIN_FILE=${TOOLCHAIN_FILE} \
-                   -DCMAKE_BUILD_TYPE=Release \
-                   -DBUILD_SHARED_LIBS=OFF \
-                   -DWHISPER_SDL2=ON \
-                   -DWHISPER_OPENBLAS=ON \
-                   -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} \
-                   -DCMAKE_PREFIX_PATH=${{ env.SDL2_DIR }} \
-                   -DCMAKE_EXE_LINKER_FLAGS="-static -static-libgcc -static-libstdc++ -luser32 -lgdi32 -lwinmm -limm32 -lole32 -loleaut32 -lversion -luuid -lsetupapi -lksuser -lshell32" \
-                   ${{ matrix.cmake_opts }}
-
+          CMAKE_COMMON_FLAGS="-DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON -DWHISPER_OPENBLAS=ON -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX}"
+          cmake .. ${CMAKE_COMMON_FLAGS} ${{ matrix.cmake_opts }} -DCMAKE_PREFIX_PATH=${{ env.SDL2_DIR }} -DCMAKE_EXE_LINKER_FLAGS="-static -static-libgcc -static-libstdc++ -luser32 -lgdi32 -lwinmm -limm32 -lole32 -loleaut32 -lversion -luuid -lsetupapi -lksuser -lshell32"
           make -j$(nproc) main stream
           make install
 
