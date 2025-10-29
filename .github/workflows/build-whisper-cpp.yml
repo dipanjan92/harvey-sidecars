@@ -75,12 +75,14 @@ jobs:
           - os: macos-14
             folder: macos-arm64
             cmake_opts: "-DCMAKE_OSX_ARCHITECTURES=arm64"
-          - os: windows-latest
+          - os: ubuntu-latest
+            container: "mstorsjo/llvm-mingw:20241001"
             folder: windows-x86_64
-            cmake_opts: "-G \"Unix Makefiles\""
-          - os: windows-latest
+            cmake_opts: ""
+          - os: ubuntu-latest
+            container: "mstorsjo/llvm-mingw:20241001"
             folder: windows-arm64
-            cmake_opts: "-G \"Unix Makefiles\""
+            cmake_opts: ""
           - os: ubuntu-latest
             folder: linux-x86_64
             cmake_opts: ""
@@ -98,40 +100,10 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install sdl2
 
-      - name: Setup MSYS2 environment (Windows ARM64)
-        if: matrix.folder == 'windows-arm64'
-        uses: msys2/setup-msys2@v2
-        with:
-          msystem: CLANGARM64
-          update: true
-          install: >-
-            make
-            cmake
-            mingw-w64-clang-aarch64-toolchain
-            mingw-w64-clang-aarch64-pkg-config
-            mingw-w64-clang-aarch64-openblas
-            mingw-w64-clang-aarch64-zlib
-            mingw-w64-clang-aarch64-libiconv
-            zip
 
-      - name: Setup MSYS2 environment (Windows x86_64)
-        if: matrix.folder == 'windows-x86_64'
-        uses: msys2/setup-msys2@v2
-        with:
-          msystem: CLANG64
-          update: true
-          install: >-
-            make
-            cmake
-            mingw-w64-clang-x86_64-toolchain
-            mingw-w64-clang-x86_64-pkg-config
-            mingw-w64-clang-x86_64-openblas
-            mingw-w64-clang-x86_64-zlib
-            mingw-w64-clang-x86_64-libiconv
-            zip
 
       - name: Install prerequisites (Linux)
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && matrix.container == ''
         run: |
           set -e
           if [[ "${{ matrix.folder }}" == "linux-arm64" ]]; then
@@ -190,49 +162,49 @@ jobs:
             make install
           fi
 
-      - name: Install prerequisites (Windows)
-        if: runner.os == 'Windows'
-        shell: msys2 {0}
+      - name: Build (Windows Cross-Compile)
+        if: matrix.container != ''
         run: |
           set -e
-          SDL2_VERSION="2.30.5"
-          INSTALL_PREFIX="${{ github.workspace }}/SDL2-install"
+          apt-get update && apt-get install -y cmake curl zip
+
+          # Build SDL2
+          SDL2_INSTALL_PATH="${{ github.workspace }}/SDL2-install-${{ matrix.folder }}"
+          echo "SDL2_DIR=${SDL2_INSTALL_PATH}" >> $GITHUB_ENV
           HOST_ARCH=""
           if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
             HOST_ARCH="aarch64-w64-mingw32"
           else
             HOST_ARCH="x86_64-w64-mingw32"
           fi
-
-          echo "Building SDL2 from source for ${{ matrix.folder }} using host ${HOST_ARCH}"
-
-          # Download and extract SDL2 source
+          SDL2_VERSION="2.30.5"
           curl -sL "https://github.com/libsdl-org/SDL/releases/download/release-${SDL2_VERSION}/SDL2-${SDL2_VERSION}.tar.gz" | tar xz
           cd SDL2-${SDL2_VERSION}
-
-          # Explicitly set the compilers to avoid auto-detection issues
-          export CC=clang
-          export CXX=clang++
-
-          # Configure, build, and install SDL2 using Autotools
-          ./configure --host=${HOST_ARCH} --prefix=${INSTALL_PREFIX} --enable-static --disable-shared
+          ./configure --host=${HOST_ARCH} --prefix=${SDL2_INSTALL_PATH} --enable-static --disable-shared
           make -j$(nproc)
           make install
+          cd ..
 
-          # Set environment variable for whisper.cpp build
-          echo "SDL2_DIR=${INSTALL_PREFIX}" >> $GITHUB_ENV
-
-      - name: List installed SDL2 files (Debug)
-        if: runner.os == 'Windows' && matrix.folder == 'windows-arm64'
-        run: |
-          echo "Listing contents of ${{ github.workspace }}/SDL2-install:"
-          ls -R "${{ github.workspace }}/SDL2-install" || true
-
-      - name: Clone whisper.cpp
-        run: git clone --depth 1 --branch v1.6.2 https://github.com/ggml-org/whisper.cpp.git whisper.cpp
+          # Build whisper.cpp
+          git clone --depth 1 --branch v1.6.2 https://github.com/ggml-org/whisper.cpp.git whisper.cpp
+          cd whisper.cpp
+          rm -rf build
+          mkdir build && cd build
+          INSTALL_PREFIX="${{ github.workspace }}/whisper-cpp-install/${{ matrix.folder }}"
+          TOOLCHAIN_FILE="${{ github.workspace }}/.github/toolchains/${HOST_ARCH}.cmake"
+          cmake .. -DCMAKE_TOOLCHAIN_FILE=${TOOLCHAIN_FILE} \
+                   -DCMAKE_BUILD_TYPE=Release \
+                   -DBUILD_SHARED_LIBS=OFF \
+                   -DWHISPER_SDL2=ON \
+                   -DWHISPER_OPENBLAS=ON \
+                   -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} \
+                   -DCMAKE_PREFIX_PATH=${SDL2_INSTALL_PATH} \
+                   -DCMAKE_EXE_LINKER_FLAGS="-static -static-libgcc -static-libstdc++ -luser32 -lgdi32 -lwinmm -limm32 -lole32 -loleaut32 -lversion -luuid -lsetupapi -lksuser -lshell32"
+          make -j$(nproc) main stream
+          make install
 
       - name: Build whisper-cpp (macOS/Linux)
-        if: runner.os != 'Windows'
+        if: runner.os != 'Windows' && matrix.container == ''
         run: |
           rm -rf whisper.cpp/build
           mkdir -p whisper.cpp/build
@@ -266,19 +238,6 @@ jobs:
             cmake --build . --config Release --target install
           fi
 
-      - name: Build whisper-cpp (Windows)
-        if: runner.os == 'Windows'
-        shell: msys2 {0}
-        run: |
-          rm -rf whisper.cpp/build
-          mkdir -p whisper.cpp/build
-          cd whisper.cpp/build
-          INSTALL_PREFIX="${{ github.workspace }}/whisper-cpp-install/${{ matrix.folder }}"
-          mkdir -p "${INSTALL_PREFIX}"
-          CMAKE_COMMON_FLAGS="-DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON -DWHISPER_OPENBLAS=ON -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX}"
-          cmake .. ${CMAKE_COMMON_FLAGS} ${{ matrix.cmake_opts }} -DCMAKE_PREFIX_PATH=${{ env.SDL2_DIR }} -DCMAKE_EXE_LINKER_FLAGS="-static -static-libgcc -static-libstdc++ -luser32 -lgdi32 -lwinmm -limm32 -lole32 -loleaut32 -lversion -luuid -lsetupapi -lksuser -lshell32"
-          make -j$(nproc) main stream
-          make install
 
       - name: List installed whisper-cpp files (Debug)
         run: |
@@ -291,41 +250,37 @@ jobs:
         run: |
           mkdir -p release_assets
           INSTALL_PREFIX="${{ github.workspace }}/whisper-cpp-install/${{ matrix.folder }}"
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
-            cp "whisper.cpp/build/bin/main.exe" release_assets/whisper-cli.exe
-            cp "whisper.cpp/build/bin/stream.exe" release_assets/whisper-stream.exe
+          if [[ "${{ matrix.folder }}" == "windows-x86_64" || "${{ matrix.folder }}" == "windows-arm64" ]]; then
+            cp "${INSTALL_PREFIX}/bin/main.exe" release_assets/whisper-cli.exe
+            cp "${INSTALL_PREFIX}/bin/stream.exe" release_assets/whisper-stream.exe
           else
-            cp "whisper.cpp/build/bin/main" release_assets/whisper-cli
-            cp "whisper.cpp/build/bin/stream" release_assets/whisper-stream
+            cp "${INSTALL_PREFIX}/bin/main" release_assets/whisper-cli
+            cp "${INSTALL_PREFIX}/bin/stream" release_assets/whisper-stream
           fi
           echo "--- Prepared assets ---"
           ls -lh release_assets
 
-      - name: Install zip
-        if: runner.os == 'Windows'
-        run: choco install zip
-      - name: Upload assets
-        if: runner.os == 'Windows'
-        shell: pwsh
+
+      - name: Upload assets (macOS/Linux)
+        if: matrix.container == ''
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $ErrorActionPreference = "Stop"
-          $ZipAsset = "whisper-sidecars-${{ matrix.folder }}.zip"
+          set -ex
+          cd release_assets
 
-          Push-Location release_assets
-          Compress-Archive -Path * -DestinationPath $ZipAsset -Force
-          Pop-Location
+          # Create zip archive
+          ZIP_ASSET="whisper-sidecars-${{ matrix.folder }}.zip"
+          zip "${ZIP_ASSET}" *
 
-          $ZipPath = "release_assets/$ZipAsset"
-          $ChecksumPath = "$($ZipPath).sha256"
-          $hash = (Get-FileHash $ZipPath -Algorithm SHA256).Hash.ToLower()
-          Set-Content -Path $ChecksumPath -Value "$hash  $ZipAsset"
+          # Create checksum
+          shasum -a 256 "${ZIP_ASSET}" > "${ZIP_ASSET}.sha256"
 
-          gh release upload ${{ needs.create-release.outputs.release_tag }} $ZipPath $ChecksumPath --clobber --repo ${{ github.repository }}
+          # Upload assets
+          gh release upload ${{ needs.create-release.outputs.release_tag }} "${ZIP_ASSET}" "${ZIP_ASSET}.sha256" --clobber --repo ${{ github.repository }}
 
-      - name: Upload assets (macOS/Linux)
-        if: runner.os != 'Windows'
+      - name: Upload assets (Windows)
+        if: matrix.container != ''
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
