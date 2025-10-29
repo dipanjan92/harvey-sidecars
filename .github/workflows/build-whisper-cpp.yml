@@ -198,27 +198,24 @@ jobs:
           echo "Building SDL2 from source for ${{ matrix.folder }}"...
           curl -sL "https://github.com/libsdl-org/SDL/releases/download/release-${SDL2_VERSION}/SDL2-${SDL2_VERSION}.tar.gz" | tar xz
           cd SDL2-${SDL2_VERSION}
-          rm -rf build
-          mkdir build && cd build
 
-          CMAKE_ARGS="-DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/SDL2-install -DSDL_STATIC=ON -DSDL_SHARED=OFF ${{ matrix.cmake_opts }}"
-
+          INSTALL_PREFIX="${{ github.workspace }}/SDL2-install"
+          HOST_ARCH=""
           if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
-            TOOLCHAIN_FILE_PATH="../arm64-toolchain.cmake"
-            echo "set(CMAKE_SYSTEM_NAME Windows)" > "${TOOLCHAIN_FILE_PATH}"
-            echo "set(CMAKE_SYSTEM_PROCESSOR ARM64)" >> "${TOOLCHAIN_FILE_PATH}"
-            echo "set(CMAKE_C_COMPILER clang)" >> "${TOOLCHAIN_FILE_PATH}"
-            echo "set(CMAKE_CXX_COMPILER clang++)" >> "${TOOLCHAIN_FILE_PATH}"
-            CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_TOOLCHAIN_FILE=${TOOLCHAIN_FILE_PATH}"
-          else
-            CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_SYSTEM_NAME=Windows"
+            HOST_ARCH="--host=aarch64-w64-mingw32"
+            export CC=clang
+            export CXX=clang++
           fi
 
-          cmake .. ${CMAKE_ARGS}
-          cmake --build . --config Release --parallel
-          cmake --build . --config Release --target install
+          ./configure ${HOST_ARCH} \
+            --prefix=${INSTALL_PREFIX} \
+            --enable-static \
+            --disable-shared
 
-          echo "SDL2_DIR=${{ github.workspace }}/SDL2-install" >> $GITHUB_ENV
+          make -j$(nproc)
+          make install
+
+          echo "SDL2_DIR=${INSTALL_PREFIX}" >> $GITHUB_ENV
           cd ../..
 
       - name: List installed SDL2 files (Debug)
@@ -292,7 +289,7 @@ jobs:
             make -j$(nproc) main stream
             make install
             mkdir -p "${INSTALL_PREFIX}/bin/"
-            cp bin/main bin/stream "${INSTALL_PREFIX}/bin/"
+            cp ./bin/main ./bin/stream "${INSTALL_PREFIX}/bin/"
           elif [[ "${{ matrix.folder }}" == "linux-x86_64" ]]; then
             cmake .. -DCMAKE_BUILD_TYPE=Release \
                      -DBUILD_SHARED_LIBS=OFF \
@@ -303,13 +300,13 @@ jobs:
             make -j$(nproc) main stream
             make install
             mkdir -p "${INSTALL_PREFIX}/bin/"
-            cp bin/main bin/stream "${INSTALL_PREFIX}/bin/"
+            cp ./bin/main ./bin/stream "${INSTALL_PREFIX}/bin/"
           else # For macOS
             cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_SDL2=ON -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" ${{ matrix.cmake_opts }}
             cmake --build . --config Release --target main --target stream
             cmake --build . --config Release --target install
             mkdir -p "${INSTALL_PREFIX}/bin/"
-            cp bin/main bin/stream "${INSTALL_PREFIX}/bin/"
+            cp ./bin/main ./bin/stream "${INSTALL_PREFIX}/bin/"
           fi
 
       - name: Build whisper-cpp (Windows)
