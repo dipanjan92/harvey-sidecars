@@ -209,10 +209,10 @@ jobs:
             echo "set(CMAKE_C_COMPILER clang)" >> toolchain.cmake
             echo "set(CMAKE_CXX_COMPILER clang++)" >> toolchain.cmake
             CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_TOOLCHAIN_FILE=./toolchain.cmake"
-            cmake .. ${CMAKE_ARGS}
+            eval cmake .. ${CMAKE_ARGS}
           else
             CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_SYSTEM_NAME=Windows"
-            cmake .. ${CMAKE_ARGS}
+            eval cmake .. ${CMAKE_ARGS}
           fi
 
           make -j$(nproc)
