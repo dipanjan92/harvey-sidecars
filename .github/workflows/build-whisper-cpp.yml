@@ -190,7 +190,7 @@ jobs:
           if [[ "${{ matrix.folder }}" == "windows-arm64" ]]; then
             apt-get update && apt-get install -y --no-install-recommends ca-certificates curl xz-utils zip
             SDL2_INSTALL_PATH="${{ github.workspace }}/SDL2-install"
-            ./../scripts/build-sdl2-mingw.sh aarch64-w64-mingw32 "${SDL2_INSTALL_PATH}"
+            ${{ github.workspace }}/.github/scripts/build-sdl2-mingw.sh aarch64-w64-mingw32 "${SDL2_INSTALL_PATH}"
             TOOLCHAIN_FILE="${{ github.workspace }}/.github/toolchains/aarch64-w64-mingw32.cmake"
             CMAKE_OPTS+=(
               "-DCMAKE_TOOLCHAIN_FILE=${TOOLCHAIN_FILE}"
@@ -200,7 +200,7 @@ jobs:
           elif [[ "${{ matrix.folder }}" == "windows-x86_64" ]]; then
             apt-get update && apt-get install -y --no-install-recommends ca-certificates curl xz-utils zip
             SDL2_INSTALL_PATH="${{ github.workspace }}/SDL2-install"
-            ./../scripts/build-sdl2-mingw.sh x86_64-w64-mingw32 "${SDL2_INSTALL_PATH}"
+            ${{ github.workspace }}/.github/scripts/build-sdl2-mingw.sh x86_64-w64-mingw32 "${SDL2_INSTALL_PATH}"
             TOOLCHAIN_FILE="${{ github.workspace }}/.github/toolchains/x86_64-w64-mingw32.cmake"
             CMAKE_OPTS+=(
               "-DCMAKE_TOOLCHAIN_FILE=${TOOLCHAIN_FILE}"
@@ -253,26 +253,7 @@ jobs:
           ls -lh release_assets
 
 
-      - name: Upload assets (macOS/Linux)
-        if: runner.os != 'Windows'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -ex
-          cd release_assets
-
-          # Create zip archive
-          ZIP_ASSET="whisper-sidecars-${{ matrix.folder }}.zip"
-          zip "${ZIP_ASSET}" *
-
-          # Create checksum
-          shasum -a 256 "${ZIP_ASSET}" > "${ZIP_ASSET}.sha256"
-
-          # Upload assets
-          gh release upload ${{ needs.create-release.outputs.release_tag }} "${ZIP_ASSET}" "${ZIP_ASSET}.sha256" --clobber --repo ${{ github.repository }}
-
-      - name: Upload assets (Windows)
-        if: runner.os == 'Windows'
+      - name: Upload assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
